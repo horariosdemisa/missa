@@ -64,7 +64,7 @@
 
   // Modo demostración: datos de ejemplo guardados solo en este navegador
   function apiDemo() {
-    const KEY = "missa_demo_v2";
+    const KEY = "missa_demo_v3";
     let db = store.get(KEY);
     if (!db) {
       const hace = d => new Date(Date.now() - d * 864e5).toISOString();
@@ -73,7 +73,7 @@
       db = {
         iglesias: [
           { id: i1, nombre: "Parroquia San José", estado: "Jalisco", ciudad: "Guadalajara", direccion: "Calle 10 #5-20", facebook: "", lat: 20.6767, lng: -103.3475 },
-          { id: i2, nombre: "Catedral Nuestra Señora del Rosario", estado: "Jalisco", ciudad: "Zapopan", direccion: "Plaza principal", facebook: "", lat: 20.7214, lng: -103.3918 },
+          { id: i2, nombre: "Catedral Nuestra Señora del Rosario", estado: "Jalisco", ciudad: "Zapopan", direccion: "Plaza principal", facebook: "", lat: 20.7214, lng: -103.3918, telefono: "33 3614 5504" },
           { id: i3, nombre: "Capilla Santa Teresita", estado: "Puebla", ciudad: "Puebla", direccion: "", facebook: "" },
         ],
         propuestas: [
@@ -82,7 +82,7 @@
           { id: uuid(), iglesia_id: i1, creado_en: hace(1), nota: "Horario de diciembre", votos: 2,
             items: [m(0,"07:00"), m(0,"09:00"), m(0,"12:00"), m(0,"19:00"), m(1,"19:00"), m(2,"19:00"), m(3,"19:00"), m(4,"19:00"), m(5,"19:00"), m(6,"17:00")] },
           { id: uuid(), iglesia_id: i2, creado_en: hace(3), nota: "", votos: 5,
-            items: [m(0,"08:00"), m(0,"11:00"), m(0,"19:00"), m(1,"07:00"), m(3,"07:00"), m(5,"07:00"), m(4,"20:00","Adoración")] },
+            items: [m(0,"08:00"), m(0,"11:00"), m(0,"19:00"), m(1,"07:00"), m(3,"07:00"), m(5,"07:00"), m(4,"20:00","Adoración"), ...[1,2,3,4,5].map(d => ({ dia: d, hora: "10:00", fin: "14:00", tipo: "Oficina" }))] },
           { id: uuid(), iglesia_id: i3, creado_en: hace(2), nota: "Tomado de su Facebook", votos: 1,
             items: [m(0,"10:00"), m(6,"18:00")] },
         ],
@@ -149,6 +149,10 @@
   }
 
   const esConf = i => i.tipo === "Confesiones";
+  // Otros servicios con su propia sección
+  const SERVICIOS = { "Adoración": "🙏 Adoración al Santísimo", "Oficina": "🏢 Oficina parroquial" };
+  const esServ = i => Object.hasOwn(SERVICIOS, i.tipo);
+  const esMisa = i => !esConf(i) && !esServ(i);
   const rango = i => i.fin ? `${hora12(i.hora)} a ${hora12(i.fin)}` : hora12(i.hora);
 
   // ---------- Próxima misa / confesión (con la hora de este dispositivo) ----------
@@ -239,10 +243,14 @@
 
   // Misas (y otras celebraciones) arriba; confesiones en su propia sección
   function tablaHorario(items, soloHoy) {
-    const misas = filasHorario(items.filter(i => !esConf(i)), soloHoy, true);
+    const misas = filasHorario(items.filter(esMisa), soloHoy, true);
     const conf = filasHorario(items.filter(esConf), soloHoy, false);
     let html = misas ? `<h4 class="seccion">⛪ Misas</h4><div class="horario">${misas}</div>` : "";
     if (conf) html += `<h4 class="seccion">🕊️ Confesiones</h4><div class="horario conf">${conf}</div>`;
+    for (const [tipo, titulo] of Object.entries(SERVICIOS)) {
+      const f = filasHorario(items.filter(i => i.tipo === tipo), soloHoy, false);
+      if (f) html += `<h4 class="seccion">${titulo}</h4><div class="horario serv">${f}</div>`;
+    }
     return html || `<p class="muted">Sin horarios registrados${soloHoy ? " para hoy" : ""}.</p>`;
   }
 
@@ -298,7 +306,7 @@
       ${foto}
       <div class="cab"><h3>${esc(ig.nombre)}</h3>${sello}</div>
       <p class="lugar">${esc(ig.ciudad)}${ig.estado && ig.estado !== ig.ciudad ? `, ${esc(ig.estado)}` : ""}${ig.direccion ? ` · ${esc(ig.direccion)}` : ""}${fb}</p>
-      <p class="lugar"><a class="mapa" href="${esc(urlMapa(ig))}" target="_blank" rel="noopener">📍 Cómo llegar</a>${POS && tieneUbic(ig) ? ` · <b>${textoKm(km(POS, ig))}</b>` : ""}</p>
+      <p class="lugar"><a class="mapa" href="${esc(urlMapa(ig))}" target="_blank" rel="noopener">📍 Cómo llegar</a>${ig.telefono ? ` · <a class="mapa" href="tel:${esc(ig.telefono.replace(/[^\d+]/g, ""))}">📞 ${esc(ig.telefono)}</a>` : ""}${POS && tieneUbic(ig) ? ` · <b>${textoKm(km(POS, ig))}</b>` : ""}</p>
       ${cuerpo}
       <div class="botones">${botones.join("")}</div>
     </article>`;
@@ -425,9 +433,16 @@
     $("#filasConf").appendChild(f);
   }
 
+  function agregarFilaServ(item) {
+    const f = $("#tplFilaServ").content.firstElementChild.cloneNode(true);
+    f.querySelector("[name=dia]").value = item ? item.dia : "lv";
+    if (item) { f.querySelector("[name=tipo]").value = item.tipo; f.querySelector("[name=hora]").value = item.hora; f.querySelector("[name=fin]").value = item.fin || ""; }
+    $("#filasServ").appendChild(f);
+  }
+
   function abrirForm(m) {
     modo = m;
-    form.reset(); $("#filas").innerHTML = ""; $("#filasConf").innerHTML = ""; $("#formError").hidden = true;
+    form.reset(); $("#filas").innerHTML = ""; $("#filasConf").innerHTML = ""; $("#filasServ").innerHTML = ""; $("#formError").hidden = true;
     const nueva = m.tipo === "nueva";
     form.elements.estado.innerHTML = `<option value="">Elige el estado…</option>` + opciones(ESTADOS, $("#estado").value);
     sugerirCiudades();
@@ -438,7 +453,8 @@
     form.elements.estado.required = nueva;
     const base = !nueva && (m.iglesia.pendiente || m.iglesia.vigente);
     const actuales = base ? base.items : [];
-    const misas = filasParaForm(actuales.filter(i => !esConf(i))), conf = filasParaForm(actuales.filter(esConf));
+    const misas = filasParaForm(actuales.filter(esMisa)), conf = filasParaForm(actuales.filter(esConf));
+    filasParaForm(actuales.filter(esServ)).forEach(agregarFilaServ);
     misas.length ? misas.forEach(agregarFila) : agregarFila();
     conf.forEach(agregarFilaConf);
     dlg.showModal();
@@ -453,10 +469,11 @@
       hora: f.querySelector("[name=hora]").value,
       tipo: f.querySelector("[name=tipo]").value,
     })));
-    const conf = [...$("#filasConf").children].flatMap(f => {
+    const conf = [...$("#filasConf").children, ...$("#filasServ").children].flatMap(f => {
       const hora = f.querySelector("[name=hora]").value, fin = f.querySelector("[name=fin]").value;
+      const tipo = f.querySelector("[name=tipo]")?.value || "Confesiones";
       return diasDe(f.querySelector("[name=dia]").value).map(dia => {
-        const i = { dia, hora, tipo: "Confesiones" };
+        const i = { dia, hora, tipo };
         if (fin && fin > hora) i.fin = fin;
         return i;
       });
@@ -511,6 +528,7 @@
 
   $("#btnFila").addEventListener("click", () => agregarFila());
   $("#btnFilaConf").addEventListener("click", () => agregarFilaConf());
+  $("#btnFilaServ").addEventListener("click", () => agregarFilaServ());
   $("#btnCancelar").addEventListener("click", () => dlg.close());
   form.addEventListener("click", e => {
     if (e.target.closest(".quitar")) e.target.closest(".fila").remove();

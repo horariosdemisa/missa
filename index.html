@@ -84,6 +84,12 @@
         <div id="filasConf"></div>
         <button type="button" class="btn sec chico" id="btnFilaConf">+ Agregar confesiones</button>
       </fieldset>
+      <fieldset>
+        <legend>🙏 Adoración y oficina parroquial</legend>
+        <p class="muted chica">Opcional. Horario de adoración al Santísimo o de atención en la oficina.</p>
+        <div id="filasServ"></div>
+        <button type="button" class="btn sec chico" id="btnFilaServ">+ Agregar adoración u oficina</button>
+      </fieldset>
       <p id="formError" class="error" hidden></p>
       <div class="acciones">
         <button type="button" class="btn sec" id="btnCancelar">Cancelar</button>
@@ -101,7 +107,7 @@
       </select>
       <input name="hora" type="time" required aria-label="Hora">
       <select name="tipo" aria-label="Tipo">
-        <option>Misa</option><option>Adoración</option><option>Rosario</option><option>Otro</option>
+        <option>Misa</option><option>Rosario</option><option>Otro</option>
       </select>
       <button type="button" class="quitar" aria-label="Quitar">✕</button>
     </div>
@@ -109,6 +115,21 @@
 
   <template id="tplFilaConf">
     <div class="fila conf">
+      <select name="dia" aria-label="Día">
+        <option value="todos">Todos los días</option><option value="ls">Lunes a sábado</option><option value="lv">Lunes a viernes</option>
+        <option value="0">Domingo</option><option value="1">Lunes</option><option value="2">Martes</option>
+        <option value="3">Miércoles</option><option value="4">Jueves</option><option value="5">Viernes</option><option value="6">Sábado</option>
+      </select>
+      <input name="hora" type="time" required aria-label="Desde">
+      <span class="a">a</span>
+      <input name="fin" type="time" aria-label="Hasta (opcional)">
+      <button type="button" class="quitar" aria-label="Quitar">✕</button>
+    </div>
+  </template>
+
+  <template id="tplFilaServ">
+    <div class="fila conf serv">
+      <select name="tipo" aria-label="Servicio"><option value="Adoración">Adoración al Santísimo</option><option value="Oficina">Oficina parroquial</option></select>
       <select name="dia" aria-label="Día">
         <option value="todos">Todos los días</option><option value="ls">Lunes a sábado</option><option value="lv">Lunes a viernes</option>
         <option value="0">Domingo</option><option value="1">Lunes</option><option value="2">Martes</option>
