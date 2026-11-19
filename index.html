@@ -28,7 +28,10 @@
         <select id="estado" aria-label="Filtrar por estado"><option value="">Todo México</option></select>
         <select id="ciudad" aria-label="Filtrar por ciudad"><option value="">Todas las ciudades</option></select>
       </div>
-      <label class="hoy"><input type="checkbox" id="soloHoy"> Solo misas de hoy</label>
+      <div class="filtros-extra">
+        <label class="hoy"><input type="checkbox" id="soloHoy"> Solo horarios de hoy</label>
+        <label class="hoy"><input type="checkbox" id="soloConf"> Con confesiones</label>
+      </div>
     </div>
   </header>
 
@@ -46,13 +49,13 @@
         <li><b>Busca</b> tu parroquia o ciudad.</li>
         <li>Si el horario es correcto, toca <b>“Confirmar horario”</b>.</li>
         <li>Cuando <b id="nReq">5</b> personas lo confirman, aparece como <span class="sello ok">✓ Validado</span>. Mientras tanto se muestra <span class="sello pend">Pendiente por validación</span>.</li>
-        <li>Si cambió, toca <b>“Actualizar horarios”</b> y escribe el horario nuevo.</li>
+        <li>Si cambió, toca <b>“Actualizar horarios”</b> y escribe el horario nuevo de misas y confesiones.</li>
       </ol>
     </section>
   </main>
 
   <footer class="pie">
-    <div class="wrap"><blockquote class="versiculo">“Y todo lo que hagáis, hacedlo de corazón, como para el Señor y no para los hombres.”<cite>Colosenses 3:23</cite></blockquote>Hecho con amor para la gloria de Dios. Gratis para todos. <a href="https://github.com" id="repoLink" target="_blank" rel="noopener">Código abierto</a> · <a href="admin.html" rel="nofollow">Administración</a></div>
+    <div class="wrap"><blockquote class="versiculo">“Y todo lo que hagáis, hacedlo de corazón, como para el Señor y no para los hombres.”<cite>Colosenses 3,23</cite></blockquote>Hecho con amor para la gloria de Dios. Gratis para todos. <a href="https://github.com" id="repoLink" target="_blank" rel="noopener">Código abierto</a> · <a href="admin.html" rel="nofollow">Administración</a></div>
   </footer>
 
   <!-- Formulario: agregar iglesia / actualizar horario -->
@@ -69,9 +72,15 @@
         <label>Página de Facebook (opcional)<input name="facebook" maxlength="300" placeholder="https://facebook.com/…"></label>
       </div>
       <fieldset>
-        <legend>Horario</legend>
+        <legend>⛪ Horarios de misa</legend>
         <div id="filas"></div>
-        <button type="button" class="btn sec chico" id="btnFila">+ Agregar horario</button>
+        <button type="button" class="btn sec chico" id="btnFila">+ Agregar misa</button>
+      </fieldset>
+      <fieldset>
+        <legend>🕊️ Horarios de confesiones</legend>
+        <p class="muted chica">Día y hora en que empiezan; la hora de término es opcional.</p>
+        <div id="filasConf"></div>
+        <button type="button" class="btn sec chico" id="btnFilaConf">+ Agregar confesiones</button>
       </fieldset>
       <p id="formError" class="error" hidden></p>
       <div class="acciones">
@@ -89,8 +98,21 @@
       </select>
       <input name="hora" type="time" required aria-label="Hora">
       <select name="tipo" aria-label="Tipo">
-        <option>Misa</option><option>Confesiones</option><option>Adoración</option><option>Rosario</option><option>Otro</option>
+        <option>Misa</option><option>Adoración</option><option>Rosario</option><option>Otro</option>
       </select>
+      <button type="button" class="quitar" aria-label="Quitar">✕</button>
+    </div>
+  </template>
+
+  <template id="tplFilaConf">
+    <div class="fila conf">
+      <select name="dia" aria-label="Día">
+        <option value="0">Domingo</option><option value="1">Lunes</option><option value="2">Martes</option>
+        <option value="3">Miércoles</option><option value="4">Jueves</option><option value="5">Viernes</option><option value="6">Sábado</option>
+      </select>
+      <input name="hora" type="time" required aria-label="Desde">
+      <span class="a">a</span>
+      <input name="fin" type="time" aria-label="Hasta (opcional)">
       <button type="button" class="quitar" aria-label="Quitar">✕</button>
     </div>
   </template>

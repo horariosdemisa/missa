@@ -23,3 +23,8 @@ Desde ahí se pueden editar iglesias, publicar horarios verificados, aprobar pro
 
 El formulario público solo acepta horarios y datos de la iglesia (sin comentarios libres) y rechaza groserías,
 tanto en la página (`filtro.js`) como en la base de datos (`_texto_limpio`).
+
+## Confesiones y fotos
+
+- Cada iglesia tiene horarios de **misa** y de **confesiones** (con hora de término opcional). Ambos forman parte del mismo horario y se validan igual: 5 confirmaciones.
+- La **foto de la iglesia** solo la sube la administración desde `admin.html` (se reduce en el navegador antes de guardarse), para evitar imágenes inapropiadas. Esquema en `supabase/004_confesiones_fotos.sql`.

@@ -42,7 +42,7 @@ body {
 }
 .buscador input { flex: 1 1 260px; max-width: 460px; }
 .buscador select { flex: 0 1 200px; }
-.hoy { display: inline-flex; gap: 6px; align-items: center; margin-top: 12px; font-size: 15px; cursor: pointer; }
+label.hoy { display: inline-flex; gap: 6px; align-items: center; margin-top: 12px; font-size: 15px; cursor: pointer; }
 
 .barra { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 20px 0 12px; }
 .conteo { margin: 0; color: var(--muted); }
@@ -128,3 +128,17 @@ legend { font-weight: 600; font-size: 14px; padding: 0 4px; }
 
 .versiculo { margin: 0 auto 14px; max-width: 520px; font-family: Georgia, serif; font-style: italic; font-size: 16px; color: var(--texto); }
 .versiculo cite { display: block; margin-top: 4px; font-style: normal; font-size: 14px; color: var(--muted); }
+
+/* Secciones de misas y confesiones */
+.filtros-extra { display: flex; flex-wrap: wrap; gap: 0 18px; }
+.seccion { margin: 12px 0 0; font-size: 14px; font-weight: 700; letter-spacing: .02em; color: var(--vino); }
+@media (prefers-color-scheme: dark) { .seccion { color: var(--oro); } }
+.horario.conf .chip { border-color: var(--oro); }
+.fila.conf { grid-template-columns: 1.3fr 1fr auto 1fr auto; }
+@media (max-width: 520px) { .fila.conf { grid-template-columns: 1fr auto 1fr auto; } .fila.conf select { grid-column: 1 / -1; } }
+.fila .a { color: var(--muted); font-size: 14px; }
+.chica { font-size: 13px; margin: 0 0 8px; }
+
+/* Foto de la iglesia (solo la sube la administración) */
+.card .foto { margin: -16px -16px 12px; border-radius: var(--radio) var(--radio) 0 0; overflow: hidden; background: var(--borde); aspect-ratio: 16 / 9; }
+.card .foto img { display: block; width: 100%; height: 100%; object-fit: cover; }

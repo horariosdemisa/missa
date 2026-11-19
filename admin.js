@@ -36,11 +36,11 @@
   }
 
   const resumen = items => [...items].sort((a, b) => a.dia - b.dia || a.hora.localeCompare(b.hora))
-    .map(i => `${DIAS[i.dia]} ${i.hora}${i.tipo !== "Misa" ? ` (${esc(i.tipo)})` : ""}`).join(" · ");
+    .map(i => `${DIAS[i.dia]} ${i.hora}${i.fin ? `–${i.fin}` : ""}${i.tipo !== "Misa" ? ` (${esc(i.tipo)})` : ""}`).join(" · ");
 
   function fila(item) {
     const f = $("#tplFila").content.firstElementChild.cloneNode(true);
-    if (item) { f.querySelector("[name=dia]").value = item.dia; f.querySelector("[name=hora]").value = item.hora; f.querySelector("[name=tipo]").value = item.tipo || "Misa"; }
+    if (item) { f.querySelector("[name=dia]").value = item.dia; f.querySelector("[name=hora]").value = item.hora; f.querySelector("[name=tipo]").value = item.tipo || "Misa"; f.querySelector("[name=fin]").value = item.fin || ""; }
     return f;
   }
 
@@ -84,6 +84,7 @@
       ${abiertaAqui ? `<form data-form="${ig.id}">${formIglesia(ig)}
           <div class="botones"><button class="btn" type="submit">Guardar datos</button>
           <button type="button" class="btn sec ${ig.oculta ? "" : "peligro"}" data-ocultar-iglesia="${ig.id}" data-valor="${!ig.oculta}">${ig.oculta ? "Volver a mostrar iglesia" : "Ocultar iglesia"}</button></div>
+          ${editorFoto(ig)}
           ${editorHorario(true)}
         </form>${lista || '<p class="muted">Sin horarios.</p>'}`
         : `<button class="btn sec chico" data-abrir="${ig.id}">Editar</button>`}
@@ -103,11 +104,63 @@
     $("#lista").innerHTML = html;
     // horario inicial en los editores
     for (const cont of document.querySelectorAll(".filas")) if (!cont.children.length) cont.appendChild(fila());
+    const ig = IGLESIAS.find(i => i.id === abierta);
+    if (ig) mostrarFotoActual(ig);
   }
 
-  const leerItems = form => [...form.querySelectorAll(".fila")].map(f => ({
-    dia: +f.querySelector("[name=dia]").value, hora: f.querySelector("[name=hora]").value, tipo: f.querySelector("[name=tipo]").value,
-  })).filter(i => i.hora);
+  const leerItems = form => [...form.querySelectorAll(".fila")].map(f => {
+    const i = { dia: +f.querySelector("[name=dia]").value, hora: f.querySelector("[name=hora]").value, tipo: f.querySelector("[name=tipo]").value };
+    const fin = f.querySelector("[name=fin]").value;
+    if (fin && fin > i.hora) i.fin = fin;
+    return i;
+  }).filter(i => i.hora);
+
+  // ---------- Foto de la iglesia ----------
+  function editorFoto(ig) {
+    return `<div class="foto-admin">
+      <img data-foto-admin="${ig.id}" alt="" ${ig.foto_actualizada ? "" : "hidden"}>
+      <div>
+        <b>Foto de la iglesia</b>
+        <p class="meta">${ig.foto_actualizada ? "Tiene foto. Puedes cambiarla o quitarla." : "Sin foto todavía."} Solo tú puedes subir fotos.</p>
+        <input type="file" accept="image/*" data-archivo="${ig.id}" hidden>
+        <div class="botones">
+          <button type="button" class="btn sec chico" data-elegir-foto="${ig.id}">${ig.foto_actualizada ? "Cambiar foto" : "Subir foto"}</button>
+          ${ig.foto_actualizada ? `<button type="button" class="btn sec chico peligro" data-quitar-foto="${ig.id}">Quitar foto</button>` : ""}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  async function mostrarFotoActual(ig) {
+    const img = document.querySelector(`[data-foto-admin="${ig.id}"]`);
+    if (!img || !ig.foto_actualizada) return;
+    try {
+      const r = ok(await sb.from("iglesia_fotos").select("foto").eq("iglesia_id", ig.id).maybeSingle());
+      if (r?.foto) img.src = r.foto;
+    } catch {}
+  }
+
+  // Reduce la foto en el navegador (máx. 1200 px, JPEG) para que pese poco
+  function reducirFoto(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let lado = 1200, calidad = 0.8, data = "";
+        do {
+          const k = Math.min(1, lado / Math.max(img.width, img.height));
+          const c = document.createElement("canvas");
+          c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+          c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+          data = c.toDataURL("image/jpeg", calidad);
+          if (calidad > 0.55) calidad -= 0.1; else lado = Math.round(lado * 0.8);
+        } while (data.length > 400000 && lado > 300);
+        resolve(data);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("No se pudo leer la imagen")); };
+      img.src = url;
+    });
+  }
 
   async function accion(fn, msg) {
     try { await fn(); toast(msg); await cargar(); } catch (e) { toast(e.message); }
@@ -125,6 +178,8 @@
       if (!items.length) return toast("Agrega al menos un horario");
       accion(() => rpc("admin_publicar_horario", { p_iglesia: form.dataset.form, p_items: items, p_nota: form.elements.nota.value }), "Horario publicado como verificado");
     }
+    else if (b.dataset.elegirFoto) form.querySelector(`[data-archivo="${b.dataset.elegirFoto}"]`).click();
+    else if (b.dataset.quitarFoto) accion(() => rpc("admin_guardar_foto", { p_iglesia: b.dataset.quitarFoto, p_foto: "" }), "Foto quitada");
     else if (b.dataset.aprobar) accion(() => rpc("admin_aprobar_propuesta", { p_id: b.dataset.aprobar, p_aprobada: b.dataset.valor === "true" }), "Listo");
     else if (b.dataset.ocultarProp) accion(() => rpc("admin_ocultar_propuesta", { p_id: b.dataset.ocultarProp, p_oculta: b.dataset.valor === "true" }), b.dataset.valor === "true" ? "Horario ocultado" : "Horario visible otra vez");
     else if (b.dataset.ocultarIglesia) accion(() => rpc("admin_ocultar_iglesia", { p_id: b.dataset.ocultarIglesia, p_oculta: b.dataset.valor === "true" }), b.dataset.valor === "true" ? "Iglesia ocultada" : "Iglesia visible otra vez");
@@ -134,6 +189,15 @@
       cont.innerHTML = ""; [...p.items].sort((a, c) => a.dia - c.dia || a.hora.localeCompare(c.hora)).forEach(i => cont.appendChild(fila(i)));
       card.querySelector("details").open = true; card.querySelector("details").scrollIntoView({ behavior: "smooth" });
     }
+  });
+
+  document.addEventListener("change", async e => {
+    const inp = e.target.closest("[data-archivo]"); if (!inp || !inp.files[0]) return;
+    toast("Subiendo foto…");
+    await accion(async () => {
+      const foto = await reducirFoto(inp.files[0]);
+      await rpc("admin_guardar_foto", { p_iglesia: inp.dataset.archivo, p_foto: foto });
+    }, "Foto guardada");
   });
 
   document.addEventListener("submit", async e => {

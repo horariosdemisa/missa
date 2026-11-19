@@ -22,6 +22,9 @@
     }
     .peligro { color: #b3261e; border-color: #b3261e !important; }
     #login { max-width: 380px; margin: 40px auto; }
+    .admin-card .fila { grid-template-columns: 1.2fr 1fr 1fr 1.3fr auto; }
+    .foto-admin { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; border-top: 1px solid var(--borde); margin-top: 12px; padding-top: 10px; }
+    .foto-admin img { width: 220px; max-width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; background: var(--borde); }
     details summary { cursor: pointer; font-weight: 600; margin: 8px 0; }
   </style>
 </head>
@@ -59,6 +62,7 @@
         <option value="3">Miércoles</option><option value="4">Jueves</option><option value="5">Viernes</option><option value="6">Sábado</option>
       </select>
       <input name="hora" type="time" aria-label="Hora">
+      <input name="fin" type="time" aria-label="Hasta (opcional)" title="Hasta (opcional, útil para confesiones)">
       <select name="tipo" aria-label="Tipo">
         <option>Misa</option><option>Confesiones</option><option>Adoración</option><option>Rosario</option><option>Otro</option>
       </select>
