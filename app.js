@@ -53,6 +53,10 @@
       async validar(propuestaId) {
         return ok(await sb.rpc("validar_horario", { p_propuesta: propuestaId, p_votante: DISPOSITIVO }));
       },
+      async foto(iglesiaId) {
+        const r = ok(await sb.from("iglesia_fotos").select("foto").eq("iglesia_id", iglesiaId).maybeSingle());
+        return r?.foto || null;
+      },
     };
   }
 
@@ -72,7 +76,7 @@
         ],
         propuestas: [
           { id: uuid(), iglesia_id: i1, creado_en: hace(20), nota: "", votos: 7,
-            items: [m(0,"07:00"), m(0,"09:00"), m(0,"12:00"), m(0,"18:00"), m(1,"18:30"), m(2,"18:30"), m(3,"18:30"), m(4,"18:30"), m(5,"18:30"), m(6,"17:00"), m(6,"16:00","Confesiones")] },
+            items: [m(0,"07:00"), m(0,"09:00"), m(0,"12:00"), m(0,"18:00"), m(1,"18:30"), m(2,"18:30"), m(3,"18:30"), m(4,"18:30"), m(5,"18:30"), m(6,"17:00"), { dia: 6, hora: "16:00", fin: "17:30", tipo: "Confesiones" }, { dia: 3, hora: "17:00", fin: "18:30", tipo: "Confesiones" }] },
           { id: uuid(), iglesia_id: i1, creado_en: hace(1), nota: "Horario de diciembre", votos: 2,
             items: [m(0,"07:00"), m(0,"09:00"), m(0,"12:00"), m(0,"19:00"), m(1,"19:00"), m(2,"19:00"), m(3,"19:00"), m(4,"19:00"), m(5,"19:00"), m(6,"17:00")] },
           { id: uuid(), iglesia_id: i2, creado_en: hace(3), nota: "", votos: 5,
@@ -94,6 +98,7 @@
         const id = uuid(); db.iglesias.push({ id, ...d }); nuevaProp(id, items); return id;
       },
       async actualizar(iglesiaId, items) { return nuevaProp(iglesiaId, items); },
+      async foto() { return null; },
       async validar(pid) {
         const p = db.propuestas.find(x => x.id === pid);
         if (p && !misVotos.has(pid)) { p.votos++; save(); }
@@ -141,17 +146,28 @@
     return new Date(iso).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
   }
 
-  function tablaHorario(items, soloHoy) {
+  const esConf = i => i.tipo === "Confesiones";
+  const rango = i => i.fin ? `${hora12(i.hora)} a ${hora12(i.fin)}` : hora12(i.hora);
+
+  function filasHorario(items, soloHoy, conTipo) {
     const hoy = new Date().getDay();
     const dias = soloHoy ? [hoy] : ORDEN_DIAS;
-    const filas = dias.map(d => {
+    return dias.map(d => {
       const del = items.filter(i => +i.dia === d).sort((a, b) => a.hora.localeCompare(b.hora));
       if (!del.length) return "";
       const chips = del.map(i =>
-        `<span class="chip">${esc(hora12(i.hora))}${i.tipo && i.tipo !== "Misa" ? ` <small>${esc(i.tipo)}</small>` : ""}</span>`).join("");
+        `<span class="chip">${esc(rango(i))}${conTipo && i.tipo && i.tipo !== "Misa" ? ` <small>${esc(i.tipo)}</small>` : ""}</span>`).join("");
       return `<tr class="${d === hoy ? "hoy" : ""}"><th>${DIAS[d]}${d === hoy ? " (hoy)" : ""}</th><td>${chips}</td></tr>`;
     }).join("");
-    return filas ? `<table class="horario">${filas}</table>` : `<p class="muted">Sin horarios registrados${soloHoy ? " para hoy" : ""}.</p>`;
+  }
+
+  // Misas (y otras celebraciones) arriba; confesiones en su propia sección
+  function tablaHorario(items, soloHoy) {
+    const misas = filasHorario(items.filter(i => !esConf(i)), soloHoy, true);
+    const conf = filasHorario(items.filter(esConf), soloHoy, false);
+    let html = misas ? `<h4 class="seccion">⛪ Misas</h4><table class="horario">${misas}</table>` : "";
+    if (conf) html += `<h4 class="seccion">🕊️ Confesiones</h4><table class="horario conf">${conf}</table>`;
+    return html || `<p class="muted">Sin horarios registrados${soloHoy ? " para hoy" : ""}.</p>`;
   }
 
   function progreso(p) {
@@ -199,7 +215,10 @@
     botones.push(`<button class="btn sec" data-actualizar="${ig.id}">Actualizar horarios</button>`);
     botones.push(`<button class="btn sec chico" data-compartir="${ig.id}">Compartir</button>`);
 
+    const foto = ig.foto_actualizada
+      ? `<div class="foto"><img data-foto="${ig.id}" alt="Foto de ${esc(ig.nombre)}" hidden></div>` : "";
     return `<article class="card" id="iglesia-${ig.id}">
+      ${foto}
       <div class="cab"><h3>${esc(ig.nombre)}</h3>${sello}</div>
       <p class="lugar">${esc(ig.ciudad)}${ig.estado && ig.estado !== ig.ciudad ? `, ${esc(ig.estado)}` : ""}${ig.direccion ? ` · ${esc(ig.direccion)}` : ""}${fb}</p>
       ${cuerpo}
@@ -218,6 +237,7 @@
       (!ciudad || ig.ciudad === ciudad) &&
       (!q || sinAcentos(`${ig.nombre} ${ig.ciudad} ${ig.estado} ${ig.direccion}`).includes(q)));
     if (soloHoy) lista = lista.filter(ig => (ig.vigente || ig.pendiente)?.items.some(i => +i.dia === hoy));
+    if ($("#soloConf").checked) lista = lista.filter(ig => (ig.vigente || ig.pendiente)?.items.some(esConf));
     // Validadas primero, luego por nombre
     lista.sort((a, b) => (!!b.vigente - !!a.vigente) || a.nombre.localeCompare(b.nombre, "es"));
 
@@ -228,6 +248,24 @@
           ? "No encontramos iglesias con esa búsqueda."
           : "Todavía no hay iglesias registradas."}<br><br>
           <button class="btn" data-agregar>+ Agregar una iglesia</button></div>`;
+    cargarFotos();
+  }
+
+  // Fotos: se descargan solo cuando la tarjeta aparece en pantalla
+  const FOTOS = new Map();
+  const verFoto = async img => {
+    const id = img.dataset.foto;
+    try {
+      if (!FOTOS.has(id)) FOTOS.set(id, api.foto(id));
+      const src = await FOTOS.get(id);
+      if (src) { img.src = src; img.hidden = false; } else img.parentElement.remove();
+    } catch { FOTOS.delete(id); }
+  };
+  const obs = "IntersectionObserver" in window
+    ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { obs.unobserve(e.target); verFoto(e.target); } }), { rootMargin: "300px" })
+    : null;
+  function cargarFotos() {
+    for (const img of document.querySelectorAll("img[data-foto]")) obs ? obs.observe(img) : verFoto(img);
   }
 
   const ESTADOS = Object.keys(window.MEXICO || {});
@@ -278,29 +316,45 @@
     $("#filas").appendChild(f);
   }
 
+  function agregarFilaConf(item) {
+    const f = $("#tplFilaConf").content.firstElementChild.cloneNode(true);
+    f.querySelector("[name=dia]").value = item ? item.dia : "6";
+    if (item) { f.querySelector("[name=hora]").value = item.hora; f.querySelector("[name=fin]").value = item.fin || ""; }
+    $("#filasConf").appendChild(f);
+  }
+
   function abrirForm(m) {
     modo = m;
-    form.reset(); $("#filas").innerHTML = ""; $("#formError").hidden = true;
+    form.reset(); $("#filas").innerHTML = ""; $("#filasConf").innerHTML = ""; $("#formError").hidden = true;
     const nueva = m.tipo === "nueva";
     form.elements.estado.innerHTML = `<option value="">Elige el estado…</option>` + opciones(ESTADOS, $("#estado").value);
     sugerirCiudades();
     $("#formTitulo").textContent = nueva ? "Agregar iglesia" : "Actualizar horarios";
-    $("#formIglesia").textContent = nueva ? "Escribe los datos y el horario de misa." : `${m.iglesia.nombre} · ${m.iglesia.ciudad}. Corrige el horario y envíalo; quedará pendiente hasta que ${REQ} personas lo confirmen.`;
+    $("#formIglesia").textContent = nueva ? "Escribe los datos, el horario de misa y, si lo sabes, el de confesiones." : `${m.iglesia.nombre} · ${m.iglesia.ciudad}. Corrige el horario y envíalo; quedará pendiente hasta que ${REQ} personas lo confirmen.`;
     $("#camposIglesia").hidden = !nueva;
     for (const el of $("#camposIglesia").querySelectorAll("input")) el.required = ["nombre", "ciudad"].includes(el.name) && nueva;
     form.elements.estado.required = nueva;
     const base = !nueva && (m.iglesia.pendiente || m.iglesia.vigente);
-    if (base) [...base.items].sort((a, b) => a.dia - b.dia || a.hora.localeCompare(b.hora)).forEach(agregarFila);
-    else agregarFila();
+    const orden = base ? [...base.items].sort((a, b) => a.dia - b.dia || a.hora.localeCompare(b.hora)) : [];
+    const misas = orden.filter(i => !esConf(i)), conf = orden.filter(esConf);
+    misas.length ? misas.forEach(agregarFila) : agregarFila();
+    conf.forEach(agregarFilaConf);
     dlg.showModal();
   }
 
   function leerItems() {
-    const items = [...$("#filas").children].map(f => ({
+    const misas = [...$("#filas").children].map(f => ({
       dia: +f.querySelector("[name=dia]").value,
       hora: f.querySelector("[name=hora]").value,
       tipo: f.querySelector("[name=tipo]").value,
-    })).filter(i => i.hora);
+    }));
+    const conf = [...$("#filasConf").children].map(f => {
+      const i = { dia: +f.querySelector("[name=dia]").value, hora: f.querySelector("[name=hora]").value, tipo: "Confesiones" };
+      const fin = f.querySelector("[name=fin]").value;
+      if (fin && fin > i.hora) i.fin = fin;
+      return i;
+    });
+    const items = [...misas, ...conf].filter(i => i.hora);
     const vistos = new Set();
     return items.filter(i => { const k = `${i.dia}|${i.hora}|${i.tipo}`; if (vistos.has(k)) return false; vistos.add(k); return true; });
   }
@@ -343,8 +397,9 @@
   });
 
   $("#btnFila").addEventListener("click", () => agregarFila());
+  $("#btnFilaConf").addEventListener("click", () => agregarFilaConf());
   $("#btnCancelar").addEventListener("click", () => dlg.close());
-  $("#filas").addEventListener("click", e => {
+  form.addEventListener("click", e => {
     if (e.target.closest(".quitar")) e.target.closest(".fila").remove();
   });
 
@@ -383,6 +438,7 @@
   $("#ciudad").addEventListener("change", render);
   form.elements.estado.addEventListener("change", sugerirCiudades);
   $("#soloHoy").addEventListener("change", render);
+  $("#soloConf").addEventListener("change", render);
 
   // ---------- Inicio ----------
   $("#nReq").textContent = REQ;
