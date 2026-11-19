@@ -62,12 +62,13 @@ label.hoy { display: inline-flex; gap: 6px; align-items: center; margin-top: 12p
 .sello.ok { background: var(--ok-bg); color: var(--ok); }
 .sello.pend { background: var(--pend-bg); color: var(--pend); }
 
-.horario { width: 100%; table-layout: fixed; border-collapse: collapse; margin: 6px 0 4px; font-size: 15px; }
-.horario th { text-align: left; font-weight: 600; padding: 6px 8px 6px 0; vertical-align: top; width: 104px; }
-.horario td { padding: 6px 0; }
-.horario tr + tr { border-top: 1px solid var(--borde); }
-.horario tr.hoy th { color: var(--vino); }
-@media (prefers-color-scheme: dark) { .horario tr.hoy th { color: var(--oro); } }
+.horario { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 4px; font-size: 15px; }
+.grupo { flex: 1 1 150px; max-width: 100%; padding: 8px 10px; border: 1px solid var(--borde); border-radius: 10px; }
+.grupo .dia { font-weight: 600; margin-bottom: 2px; }
+.grupo .dia small { font-weight: 400; color: var(--muted); }
+.grupo.hoy { border-color: var(--vino); }
+.grupo.hoy .dia { color: var(--vino); }
+@media (prefers-color-scheme: dark) { .grupo.hoy { border-color: var(--oro); } .grupo.hoy .dia { color: var(--oro); } }
 .chip { display: inline-block; white-space: nowrap; margin: 2px 6px 2px 0; padding: 2px 8px; border-radius: 8px; background: var(--fondo); border: 1px solid var(--borde); font-variant-numeric: tabular-nums; }
 .chip small { color: var(--muted); }
 

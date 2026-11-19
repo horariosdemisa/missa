@@ -149,15 +149,39 @@
   const esConf = i => i.tipo === "Confesiones";
   const rango = i => i.fin ? `${hora12(i.hora)} a ${hora12(i.fin)}` : hora12(i.hora);
 
+  const CORTO = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+  // Opciones de varios días en el formulario
+  const GRUPOS_DIAS = { todos: [0, 1, 2, 3, 4, 5, 6], ls: [1, 2, 3, 4, 5, 6], lv: [1, 2, 3, 4, 5] };
+  const mismo = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+
+  // "Todos los días", "Lun a Sáb", "Dom, Mié"...
+  function nombreDias(ds) {
+    if (ds.length === 7) return "Todos los días";
+    if (ds.length === 1) return DIAS[ds[0]];
+    const tramos = [];
+    for (const d of ds) {
+      const t = tramos[tramos.length - 1];
+      if (t && d === t[t.length - 1] + 1) t.push(d); else tramos.push([d]);
+    }
+    return tramos.map(t => t.length >= 3 ? `${CORTO[t[0]]} a ${CORTO[t[t.length - 1]]}` : t.map(d => CORTO[d]).join(", ")).join(", ");
+  }
+
+  // Junta los días que tienen exactamente los mismos horarios y los muestra en fila
   function filasHorario(items, soloHoy, conTipo) {
     const hoy = new Date().getDay();
     const dias = soloHoy ? [hoy] : ORDEN_DIAS;
-    return dias.map(d => {
+    const grupos = [];
+    for (const d of dias) {
       const del = items.filter(i => +i.dia === d).sort((a, b) => a.hora.localeCompare(b.hora));
-      if (!del.length) return "";
+      if (!del.length) continue;
       const chips = del.map(i =>
         `<span class="chip">${esc(rango(i))}${conTipo && i.tipo && i.tipo !== "Misa" ? ` <small>${esc(i.tipo)}</small>` : ""}</span>`).join("");
-      return `<tr class="${d === hoy ? "hoy" : ""}"><th>${DIAS[d]}${d === hoy ? " (hoy)" : ""}</th><td>${chips}</td></tr>`;
+      const g = grupos.find(g => g.chips === chips);
+      if (g) g.dias.push(d); else grupos.push({ dias: [d], chips });
+    }
+    return grupos.map(g => {
+      const esHoy = g.dias.includes(hoy);
+      return `<div class="grupo${esHoy ? " hoy" : ""}"><div class="dia">${esc(nombreDias(g.dias))}${esHoy ? " <small>(hoy)</small>" : ""}</div><div>${g.chips}</div></div>`;
     }).join("");
   }
 
@@ -165,8 +189,8 @@
   function tablaHorario(items, soloHoy) {
     const misas = filasHorario(items.filter(i => !esConf(i)), soloHoy, true);
     const conf = filasHorario(items.filter(esConf), soloHoy, false);
-    let html = misas ? `<h4 class="seccion">⛪ Misas</h4><table class="horario">${misas}</table>` : "";
-    if (conf) html += `<h4 class="seccion">🕊️ Confesiones</h4><table class="horario conf">${conf}</table>`;
+    let html = misas ? `<h4 class="seccion">⛪ Misas</h4><div class="horario">${misas}</div>` : "";
+    if (conf) html += `<h4 class="seccion">🕊️ Confesiones</h4><div class="horario conf">${conf}</div>`;
     return html || `<p class="muted">Sin horarios registrados${soloHoy ? " para hoy" : ""}.</p>`;
   }
 
@@ -309,6 +333,25 @@
   const dlg = $("#dlgForm"), form = $("#form");
   let modo = null; // { tipo: "nueva" } | { tipo: "actualizar", iglesia }
 
+  // Para editar: convierte el horario guardado en filas, juntando "Todos los días", "Lun a Vie"...
+  function filasParaForm(items) {
+    const porHora = new Map();
+    for (const i of items) {
+      const k = `${i.hora}|${i.fin || ""}|${i.tipo || "Misa"}`;
+      if (!porHora.has(k)) porHora.set(k, { ...i, dias: [] });
+      porHora.get(k).dias.push(+i.dia);
+    }
+    const filas = [];
+    for (const g of porHora.values()) {
+      const ds = [...new Set(g.dias)].sort((a, b) => a - b);
+      const grupo = Object.keys(GRUPOS_DIAS).find(n => mismo(GRUPOS_DIAS[n], ds));
+      if (grupo) filas.push({ ...g, dia: grupo });
+      else ds.forEach(d => filas.push({ ...g, dia: String(d) }));
+    }
+    const ordenDia = d => d in GRUPOS_DIAS ? -1 : +d;
+    return filas.sort((a, b) => ordenDia(a.dia) - ordenDia(b.dia) || a.hora.localeCompare(b.hora));
+  }
+
   function agregarFila(item) {
     const f = $("#tplFila").content.firstElementChild.cloneNode(true);
     if (item) { f.querySelector("[name=dia]").value = item.dia; f.querySelector("[name=hora]").value = item.hora; f.querySelector("[name=tipo]").value = item.tipo || "Misa"; }
@@ -318,7 +361,7 @@
 
   function agregarFilaConf(item) {
     const f = $("#tplFilaConf").content.firstElementChild.cloneNode(true);
-    f.querySelector("[name=dia]").value = item ? item.dia : "6";
+    f.querySelector("[name=dia]").value = item ? item.dia : "todos";
     if (item) { f.querySelector("[name=hora]").value = item.hora; f.querySelector("[name=fin]").value = item.fin || ""; }
     $("#filasConf").appendChild(f);
   }
@@ -335,24 +378,29 @@
     for (const el of $("#camposIglesia").querySelectorAll("input")) el.required = ["nombre", "ciudad"].includes(el.name) && nueva;
     form.elements.estado.required = nueva;
     const base = !nueva && (m.iglesia.pendiente || m.iglesia.vigente);
-    const orden = base ? [...base.items].sort((a, b) => a.dia - b.dia || a.hora.localeCompare(b.hora)) : [];
-    const misas = orden.filter(i => !esConf(i)), conf = orden.filter(esConf);
+    const actuales = base ? base.items : [];
+    const misas = filasParaForm(actuales.filter(i => !esConf(i))), conf = filasParaForm(actuales.filter(esConf));
     misas.length ? misas.forEach(agregarFila) : agregarFila();
     conf.forEach(agregarFilaConf);
     dlg.showModal();
   }
 
+  // Una fila con "Todos los días" o "Lunes a viernes" se guarda como un horario por cada día
+  const diasDe = v => GRUPOS_DIAS[v] || [+v];
+
   function leerItems() {
-    const misas = [...$("#filas").children].map(f => ({
-      dia: +f.querySelector("[name=dia]").value,
+    const misas = [...$("#filas").children].flatMap(f => diasDe(f.querySelector("[name=dia]").value).map(dia => ({
+      dia,
       hora: f.querySelector("[name=hora]").value,
       tipo: f.querySelector("[name=tipo]").value,
-    }));
-    const conf = [...$("#filasConf").children].map(f => {
-      const i = { dia: +f.querySelector("[name=dia]").value, hora: f.querySelector("[name=hora]").value, tipo: "Confesiones" };
-      const fin = f.querySelector("[name=fin]").value;
-      if (fin && fin > i.hora) i.fin = fin;
-      return i;
+    })));
+    const conf = [...$("#filasConf").children].flatMap(f => {
+      const hora = f.querySelector("[name=hora]").value, fin = f.querySelector("[name=fin]").value;
+      return diasDe(f.querySelector("[name=dia]").value).map(dia => {
+        const i = { dia, hora, tipo: "Confesiones" };
+        if (fin && fin > hora) i.fin = fin;
+        return i;
+      });
     });
     const items = [...misas, ...conf].filter(i => i.hora);
     const vistos = new Set();
@@ -364,6 +412,7 @@
     const items = leerItems();
     const err = $("#formError");
     if (!items.length) { err.textContent = "Agrega al menos un horario."; err.hidden = false; return; }
+    if (items.length > 80) { err.textContent = "Son demasiados horarios. Junta los que se repiten con “Todos los días” o “Lunes a viernes”."; err.hidden = false; return; }
     const fd = new FormData(form);
     const btn = $("#btnEnviar"); btn.disabled = true; btn.textContent = "Enviando…";
     try {
