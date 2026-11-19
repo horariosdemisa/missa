@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Administración · Horarios de Misa</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛪</text></svg>">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .hero { padding: 20px 0; }
+    .admin-card { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: var(--radio); padding: 16px; margin: 14px 0; }
+    .admin-card h3 { margin: 0 0 4px; font-family: Georgia, serif; }
+    .prop { border-top: 1px solid var(--borde); padding: 10px 0; }
+    .prop .meta { margin: 0 0 6px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+    @media (max-width: 520px) { .grid2 { grid-template-columns: 1fr; } }
+    .admin-card label { display: block; font-size: 14px; font-weight: 600; margin: 8px 0; }
+    .admin-card input, .admin-card select, #login input {
+      display: block; width: 100%; font: inherit; font-weight: 400; margin-top: 4px; padding: 9px 10px;
+      border-radius: 8px; border: 1px solid var(--borde); background: var(--fondo); color: var(--texto);
+    }
+    .peligro { color: #b3261e; border-color: #b3261e !important; }
+    #login { max-width: 380px; margin: 40px auto; }
+    details summary { cursor: pointer; font-weight: 600; margin: 8px 0; }
+  </style>
+</head>
+<body>
+  <header class="hero"><div class="wrap"><h1>Administración</h1><p class="sub"><a href="./" style="color:#fff">← Volver a la página</a></p></div></header>
+  <main class="wrap">
+    <form id="login" class="admin-card">
+      <h3>Entrar</h3>
+      <label>Clave de administración<input id="clave" type="password" autocomplete="current-password" required></label>
+      <p id="loginError" class="error" hidden></p>
+      <button class="btn" type="submit">Entrar</button>
+    </form>
+
+    <div id="panel" hidden>
+      <div class="barra">
+        <input id="q" type="search" placeholder="Buscar iglesia…" style="flex:1;font:inherit;padding:10px 14px;border-radius:999px;border:1px solid var(--borde);background:var(--tarjeta);color:var(--texto)">
+        <button class="btn" id="btnNueva">+ Nueva iglesia</button>
+      </div>
+      <div id="lista"></div>
+      <details class="admin-card">
+        <summary>Cambiar mi clave</summary>
+        <form id="formClave">
+          <label>Clave nueva (mínimo 10 caracteres)<input name="nueva" type="password" minlength="10" autocomplete="new-password" required></label>
+          <button class="btn sec" type="submit">Guardar clave</button>
+        </form>
+      </details>
+      <p><button class="btn sec chico" id="btnSalir">Salir</button></p>
+    </div>
+  </main>
+
+  <template id="tplFila">
+    <div class="fila">
+      <select name="dia" aria-label="Día">
+        <option value="0">Domingo</option><option value="1">Lunes</option><option value="2">Martes</option>
+        <option value="3">Miércoles</option><option value="4">Jueves</option><option value="5">Viernes</option><option value="6">Sábado</option>
+      </select>
+      <input name="hora" type="time" aria-label="Hora">
+      <select name="tipo" aria-label="Tipo">
+        <option>Misa</option><option>Confesiones</option><option>Adoración</option><option>Rosario</option><option>Otro</option>
+      </select>
+      <button type="button" class="quitar" aria-label="Quitar">✕</button>
+    </div>
+  </template>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script src="config.js"></script>
+  <script src="mexico.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

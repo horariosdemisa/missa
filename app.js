@@ -39,15 +39,15 @@
         ]);
         return { iglesias, propuestas };
       },
-      async agregarIglesia(d, items, nota) {
+      async agregarIglesia(d, items) {
         return ok(await sb.rpc("agregar_iglesia", {
-          p_nombre: d.nombre, p_ciudad: d.ciudad, p_direccion: d.direccion, p_facebook: d.facebook,
-          p_items: items, p_nota: nota, p_autor: DISPOSITIVO,
+          p_nombre: d.nombre, p_estado: d.estado, p_ciudad: d.ciudad, p_direccion: d.direccion,
+          p_facebook: d.facebook, p_items: items, p_autor: DISPOSITIVO,
         }));
       },
-      async actualizar(iglesiaId, items, nota) {
+      async actualizar(iglesiaId, items) {
         return ok(await sb.rpc("actualizar_horario", {
-          p_iglesia: iglesiaId, p_items: items, p_nota: nota, p_autor: DISPOSITIVO,
+          p_iglesia: iglesiaId, p_items: items, p_autor: DISPOSITIVO,
         }));
       },
       async validar(propuestaId) {
@@ -58,7 +58,7 @@
 
   // Modo demostración: datos de ejemplo guardados solo en este navegador
   function apiDemo() {
-    const KEY = "missa_demo_v1";
+    const KEY = "missa_demo_v2";
     let db = store.get(KEY);
     if (!db) {
       const hace = d => new Date(Date.now() - d * 864e5).toISOString();
@@ -66,9 +66,9 @@
       const m = (dia, hora, tipo = "Misa") => ({ dia, hora, tipo });
       db = {
         iglesias: [
-          { id: i1, nombre: "Parroquia San José", ciudad: "Ciudad de ejemplo", direccion: "Calle 10 #5-20", facebook: "" },
-          { id: i2, nombre: "Catedral Nuestra Señora del Rosario", ciudad: "Ciudad de ejemplo", direccion: "Plaza principal", facebook: "" },
-          { id: i3, nombre: "Capilla Santa Teresita", ciudad: "Otra ciudad", direccion: "", facebook: "" },
+          { id: i1, nombre: "Parroquia San José", estado: "Jalisco", ciudad: "Guadalajara", direccion: "Calle 10 #5-20", facebook: "" },
+          { id: i2, nombre: "Catedral Nuestra Señora del Rosario", estado: "Jalisco", ciudad: "Zapopan", direccion: "Plaza principal", facebook: "" },
+          { id: i3, nombre: "Capilla Santa Teresita", estado: "Puebla", ciudad: "Puebla", direccion: "", facebook: "" },
         ],
         propuestas: [
           { id: uuid(), iglesia_id: i1, creado_en: hace(20), nota: "", votos: 7,
@@ -84,16 +84,16 @@
       store.set(KEY, db);
     }
     const save = () => store.set(KEY, db);
-    const nuevaProp = (iglesia_id, items, nota) => {
-      const p = { id: uuid(), iglesia_id, items, nota, votos: 1, creado_en: new Date().toISOString() };
+    const nuevaProp = (iglesia_id, items) => {
+      const p = { id: uuid(), iglesia_id, items, nota: "", votos: 1, creado_en: new Date().toISOString() };
       db.propuestas.unshift(p); guardarVoto(p.id); save(); return p.id;
     };
     return {
       async cargar() { return JSON.parse(JSON.stringify(db)); },
-      async agregarIglesia(d, items, nota) {
-        const id = uuid(); db.iglesias.push({ id, ...d }); nuevaProp(id, items, nota); return id;
+      async agregarIglesia(d, items) {
+        const id = uuid(); db.iglesias.push({ id, ...d }); nuevaProp(id, items); return id;
       },
-      async actualizar(iglesiaId, items, nota) { return nuevaProp(iglesiaId, items, nota); },
+      async actualizar(iglesiaId, items) { return nuevaProp(iglesiaId, items); },
       async validar(pid) {
         const p = db.propuestas.find(x => x.id === pid);
         if (p && !misVotos.has(pid)) { p.votos++; save(); }
@@ -113,7 +113,7 @@
     }
     return iglesias.map(ig => {
       const props = (porIglesia.get(ig.id) || []).sort((a, b) => b.creado_en.localeCompare(a.creado_en));
-      const vigente = props.find(p => p.votos >= REQ) || null;   // última validada
+      const vigente = props.find(validada) || null;   // última validada
       const ultima = props[0] || null;
       // Una propuesta más nueva que la validada queda "pendiente"
       const pendiente = ultima && (!vigente || ultima.creado_en > vigente.creado_en) ? ultima : null;
@@ -121,6 +121,7 @@
     });
   }
 
+  const validada = p => p.aprobada || p.votos >= REQ;
   const sinAcentos = s => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
   // ---------- Render ----------
@@ -178,7 +179,7 @@
     if (principal) {
       cuerpo += tablaHorario(principal.items, soloHoy);
       if (vigente) {
-        cuerpo += `<p class="meta">Confirmado por ${vigente.votos} personas · actualizado ${fechaRel(vigente.creado_en)}${vigente.nota ? ` · ${esc(vigente.nota)}` : ""}</p>`;
+        cuerpo += `<p class="meta">${vigente.aprobada ? "Verificado por la administración" : `Confirmado por ${vigente.votos} personas`} · actualizado ${fechaRel(vigente.creado_en)}${vigente.nota ? ` · ${esc(vigente.nota)}` : ""}</p>`;
       } else {
         cuerpo += progreso(pendiente);
         cuerpo += `<p class="meta">Enviado ${fechaRel(pendiente.creado_en)}${pendiente.nota ? ` · ${esc(pendiente.nota)}` : ""}. ¿Es correcto? Confírmalo.</p>`;
@@ -200,7 +201,7 @@
 
     return `<article class="card" id="iglesia-${ig.id}">
       <div class="cab"><h3>${esc(ig.nombre)}</h3>${sello}</div>
-      <p class="lugar">${esc(ig.ciudad)}${ig.direccion ? ` · ${esc(ig.direccion)}` : ""}${fb}</p>
+      <p class="lugar">${esc(ig.ciudad)}${ig.estado && ig.estado !== ig.ciudad ? `, ${esc(ig.estado)}` : ""}${ig.direccion ? ` · ${esc(ig.direccion)}` : ""}${fb}</p>
       ${cuerpo}
       <div class="botones">${botones.join("")}</div>
     </article>`;
@@ -208,12 +209,14 @@
 
   function render() {
     const q = sinAcentos($("#q").value.trim());
+    const estado = $("#estado").value;
     const ciudad = $("#ciudad").value;
     const soloHoy = $("#soloHoy").checked;
     const hoy = new Date().getDay();
     let lista = IGLESIAS.filter(ig =>
+      (!estado || ig.estado === estado) &&
       (!ciudad || ig.ciudad === ciudad) &&
-      (!q || sinAcentos(`${ig.nombre} ${ig.ciudad} ${ig.direccion}`).includes(q)));
+      (!q || sinAcentos(`${ig.nombre} ${ig.ciudad} ${ig.estado} ${ig.direccion}`).includes(q)));
     if (soloHoy) lista = lista.filter(ig => (ig.vigente || ig.pendiente)?.items.some(i => +i.dia === hoy));
     // Validadas primero, luego por nombre
     lista.sort((a, b) => (!!b.vigente - !!a.vigente) || a.nombre.localeCompare(b.nombre, "es"));
@@ -227,18 +230,31 @@
           <button class="btn" data-agregar>+ Agregar una iglesia</button></div>`;
   }
 
-  function llenarCiudades() {
-    const ciudades = [...new Set(IGLESIAS.map(i => i.ciudad))].sort((a, b) => a.localeCompare(b, "es"));
-    const sel = $("#ciudad"), actual = sel.value;
-    sel.innerHTML = `<option value="">Todas las ciudades</option>` +
-      ciudades.map(c => `<option ${c === actual ? "selected" : ""}>${esc(c)}</option>`).join("");
-    $("#ciudadesList").innerHTML = ciudades.map(c => `<option value="${esc(c)}">`).join("");
+  const ESTADOS = Object.keys(window.MEXICO || {});
+  const opciones = (lista, actual) => lista.map(c => `<option ${c === actual ? "selected" : ""}>${esc(c)}</option>`).join("");
+  const ordenar = arr => [...new Set(arr)].filter(Boolean).sort((a, b) => a.localeCompare(b, "es"));
+
+  // Filtros: estados y ciudades donde ya hay iglesias registradas
+  function llenarFiltros() {
+    const selE = $("#estado"), selC = $("#ciudad");
+    const conIglesias = ordenar(IGLESIAS.map(i => i.estado));
+    selE.innerHTML = `<option value="">Todo México</option>` + opciones(conIglesias, selE.value);
+    const ciudades = ordenar(IGLESIAS.filter(i => !selE.value || i.estado === selE.value).map(i => i.ciudad));
+    if (!ciudades.includes(selC.value)) selC.value = "";
+    selC.innerHTML = `<option value="">Todas las ciudades</option>` + opciones(ciudades, selC.value);
+  }
+
+  // Formulario: ciudades sugeridas según el estado elegido
+  function sugerirCiudades() {
+    const est = form.elements.estado.value;
+    const lista = ordenar([...(window.MEXICO?.[est] || []), ...IGLESIAS.filter(i => i.estado === est).map(i => i.ciudad)]);
+    $("#ciudadesList").innerHTML = lista.map(c => `<option value="${esc(c)}">`).join("");
   }
 
   async function recargar() {
     try {
       IGLESIAS = armar(await api.cargar());
-      llenarCiudades();
+      llenarFiltros();
       render();
     } catch (e) {
       console.error(e);
@@ -266,10 +282,13 @@
     modo = m;
     form.reset(); $("#filas").innerHTML = ""; $("#formError").hidden = true;
     const nueva = m.tipo === "nueva";
+    form.elements.estado.innerHTML = `<option value="">Elige el estado…</option>` + opciones(ESTADOS, $("#estado").value);
+    sugerirCiudades();
     $("#formTitulo").textContent = nueva ? "Agregar iglesia" : "Actualizar horarios";
     $("#formIglesia").textContent = nueva ? "Escribe los datos y el horario de misa." : `${m.iglesia.nombre} · ${m.iglesia.ciudad}. Corrige el horario y envíalo; quedará pendiente hasta que ${REQ} personas lo confirmen.`;
     $("#camposIglesia").hidden = !nueva;
     for (const el of $("#camposIglesia").querySelectorAll("input")) el.required = ["nombre", "ciudad"].includes(el.name) && nueva;
+    form.elements.estado.required = nueva;
     const base = !nueva && (m.iglesia.pendiente || m.iglesia.vigente);
     if (base) [...base.items].sort((a, b) => a.dia - b.dia || a.hora.localeCompare(b.hora)).forEach(agregarFila);
     else agregarFila();
@@ -296,11 +315,13 @@
     try {
       let id;
       if (modo.tipo === "nueva") {
-        const d = { nombre: fd.get("nombre").trim(), ciudad: fd.get("ciudad").trim(), direccion: fd.get("direccion").trim(), facebook: fd.get("facebook").trim() };
-        if (d.nombre.length < 3 || d.ciudad.length < 2) throw new Error("Escribe el nombre y la ciudad.");
-        id = await api.agregarIglesia(d, items, fd.get("nota"));
+        const d = { nombre: fd.get("nombre").trim(), estado: fd.get("estado"), ciudad: fd.get("ciudad").trim(), direccion: fd.get("direccion").trim(), facebook: fd.get("facebook").trim() };
+        if (d.nombre.length < 3 || d.ciudad.length < 2 || !d.estado) throw new Error("Escribe el nombre, el estado y la ciudad.");
+        if (!window.textoLimpio(`${d.nombre} ${d.ciudad} ${d.direccion}`)) throw new Error("Por favor escribe solo los datos de la iglesia, sin palabras ofensivas.");
+        if (d.facebook && !/^https?:\/\/([a-z0-9-]+\.)*(facebook\.com|fb\.com|fb\.me)\//i.test(d.facebook)) throw new Error("El enlace debe ser de Facebook (https://facebook.com/…).");
+        id = await api.agregarIglesia(d, items);
       } else {
-        const pid = await api.actualizar(modo.iglesia.id, items, fd.get("nota"));
+        const pid = await api.actualizar(modo.iglesia.id, items);
         if (pid) guardarVoto(pid);
         id = modo.iglesia.id;
       }
@@ -358,7 +379,9 @@
 
   let tq;
   $("#q").addEventListener("input", () => { clearTimeout(tq); tq = setTimeout(render, 120); });
+  $("#estado").addEventListener("change", () => { llenarFiltros(); render(); });
   $("#ciudad").addEventListener("change", render);
+  form.elements.estado.addEventListener("change", sugerirCiudades);
   $("#soloHoy").addEventListener("change", render);
 
   // ---------- Inicio ----------

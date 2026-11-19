@@ -13,3 +13,13 @@ Página web gratuita para consultar horarios de misa, validados por la comunidad
 - La configuración pública va en `config.js`. Si está vacía, la página funciona en modo demostración.
 
 Hecho con amor para la gloria de Dios.
+
+## Administración
+
+`admin.html` es el panel privado (no aparece en buscadores). Se entra con una clave que se guarda cifrada en la base de datos.
+Desde ahí se pueden editar iglesias, publicar horarios verificados, aprobar propuestas y ocultar contenido (nada se borra, se puede volver a mostrar).
+
+## Moderación
+
+El formulario público solo acepta horarios y datos de la iglesia (sin comentarios libres) y rechaza groserías,
+tanto en la página (`filtro.js`) como en la base de datos (`_texto_limpio`).

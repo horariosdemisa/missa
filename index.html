@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Horarios de Misa · Encuentra misa cerca de ti</title>
-  <meta name="description" content="Horarios de misa actualizados y validados por la comunidad. Busca tu parroquia o ciudad, confirma los horarios y ayuda a mantenerlos al día. Gratis para todos.">
+  <title>Horarios de Misa en México · Encuentra misa cerca de ti</title>
+  <meta name="description" content="Horarios de misa actualizados y validados por la comunidad. Busca tu parroquia, ciudad o estado en México, confirma los horarios y ayuda a mantenerlos al día. Gratis para todos.">
   <meta name="keywords" content="horarios de misa, misa hoy, parroquias, iglesia católica, confesiones, adoración, horario de misa cerca de mí">
   <meta property="og:title" content="Horarios de Misa">
   <meta property="og:description" content="Horarios de misa validados por la comunidad. Gratis para todos.">
@@ -24,7 +24,8 @@
       <p class="sub">Horarios confirmados por la comunidad. Si ves uno desactualizado, ayúdanos a corregirlo.</p>
       <div class="buscador">
         <label class="sr" for="q">Buscar parroquia o ciudad</label>
-        <input id="q" type="search" placeholder="Buscar parroquia o ciudad…" autocomplete="off">
+        <input id="q" type="search" placeholder="Buscar parroquia, colonia o ciudad…" autocomplete="off">
+        <select id="estado" aria-label="Filtrar por estado"><option value="">Todo México</option></select>
         <select id="ciudad" aria-label="Filtrar por ciudad"><option value="">Todas las ciudades</option></select>
       </div>
       <label class="hoy"><input type="checkbox" id="soloHoy"> Solo misas de hoy</label>
@@ -51,7 +52,7 @@
   </main>
 
   <footer class="pie">
-    <div class="wrap">Hecho con amor para la gloria de Dios. Gratis para todos. <a href="https://github.com" id="repoLink" target="_blank" rel="noopener">Código abierto</a></div>
+    <div class="wrap">Hecho con amor para la gloria de Dios. Gratis para todos. <a href="https://github.com" id="repoLink" target="_blank" rel="noopener">Código abierto</a> · <a href="admin.html" rel="nofollow">Administración</a></div>
   </footer>
 
   <!-- Formulario: agregar iglesia / actualizar horario -->
@@ -61,7 +62,8 @@
       <p id="formIglesia" class="muted"></p>
       <div id="camposIglesia">
         <label>Nombre de la iglesia o parroquia<input name="nombre" maxlength="120" placeholder="Parroquia San José"></label>
-        <label>Ciudad<input name="ciudad" maxlength="80" placeholder="Bogotá" list="ciudadesList"></label>
+        <label>Estado<select name="estado"><option value="">Elige el estado…</option></select></label>
+        <label>Ciudad o municipio<input name="ciudad" maxlength="80" placeholder="Escribe o elige de la lista" list="ciudadesList" autocomplete="off"></label>
         <datalist id="ciudadesList"></datalist>
         <label>Dirección (opcional)<input name="direccion" maxlength="200"></label>
         <label>Página de Facebook (opcional)<input name="facebook" maxlength="300" placeholder="https://facebook.com/…"></label>
@@ -71,7 +73,6 @@
         <div id="filas"></div>
         <button type="button" class="btn sec chico" id="btnFila">+ Agregar horario</button>
       </fieldset>
-      <label>Nota (opcional)<input name="nota" maxlength="300" placeholder="Ej.: horario de diciembre"></label>
       <p id="formError" class="error" hidden></p>
       <div class="acciones">
         <button type="button" class="btn sec" id="btnCancelar">Cancelar</button>
@@ -97,6 +98,8 @@
   <div id="toast" class="toast" role="status" hidden></div>
 
   <script src="config.js"></script>
+  <script src="mexico.js"></script>
+  <script src="filtro.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
   <script src="app.js"></script>
 </body>
