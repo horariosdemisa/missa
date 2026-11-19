@@ -52,7 +52,10 @@
       <label>Ciudad<input name="ciudad" value="${esc(ig?.ciudad)}" required></label>
       <label>Dirección<input name="direccion" value="${esc(ig?.direccion)}"></label>
     </div>
-    <label>Facebook<input name="facebook" value="${esc(ig?.facebook)}"></label>`;
+    <div class="grid2">
+      <label>Facebook<input name="facebook" value="${esc(ig?.facebook)}"></label>
+      <label>Teléfono (opcional)<input name="telefono" type="tel" value="${esc(ig?.telefono)}" placeholder="33 1234 5678" pattern="[0-9 +()./-]{7,30}"></label>
+    </div>`;
   }
 
   function editorHorario(items) {
@@ -299,11 +302,16 @@
       if (!items.length) return toast("Agrega al menos un horario");
       await accion(async () => {
         const nuevo = await rpc("admin_guardar_iglesia", datos);
+        if (f.telefono.value.trim()) await rpc("admin_guardar_telefono", { p_iglesia: nuevo, p_telefono: f.telefono.value });
         await rpc("admin_publicar_horario", { p_iglesia: nuevo, p_items: items, p_nota: f.nota.value });
         abierta = nuevo;
       }, "Iglesia agregada");
     } else {
-      await accion(() => rpc("admin_guardar_iglesia", datos), "Datos guardados");
+      await accion(async () => {
+        await rpc("admin_guardar_iglesia", datos);
+        const ig = IGLESIAS.find(i => i.id === id);
+        if ((ig?.telefono || "") !== f.telefono.value.trim()) await rpc("admin_guardar_telefono", { p_iglesia: id, p_telefono: f.telefono.value });
+      }, "Datos guardados");
     }
   });
 
