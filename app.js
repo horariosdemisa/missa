@@ -40,10 +40,12 @@
         return { iglesias, propuestas };
       },
       async agregarIglesia(d, items) {
-        return ok(await sb.rpc("agregar_iglesia", {
+        const args = {
           p_nombre: d.nombre, p_estado: d.estado, p_ciudad: d.ciudad, p_direccion: d.direccion,
           p_facebook: d.facebook, p_items: items, p_autor: DISPOSITIVO,
-        }));
+        };
+        if (d.lat != null) { args.p_lat = d.lat; args.p_lng = d.lng; }
+        return ok(await sb.rpc("agregar_iglesia", args));
       },
       async actualizar(iglesiaId, items) {
         return ok(await sb.rpc("actualizar_horario", {
@@ -70,8 +72,8 @@
       const m = (dia, hora, tipo = "Misa") => ({ dia, hora, tipo });
       db = {
         iglesias: [
-          { id: i1, nombre: "Parroquia San José", estado: "Jalisco", ciudad: "Guadalajara", direccion: "Calle 10 #5-20", facebook: "" },
-          { id: i2, nombre: "Catedral Nuestra Señora del Rosario", estado: "Jalisco", ciudad: "Zapopan", direccion: "Plaza principal", facebook: "" },
+          { id: i1, nombre: "Parroquia San José", estado: "Jalisco", ciudad: "Guadalajara", direccion: "Calle 10 #5-20", facebook: "", lat: 20.6767, lng: -103.3475 },
+          { id: i2, nombre: "Catedral Nuestra Señora del Rosario", estado: "Jalisco", ciudad: "Zapopan", direccion: "Plaza principal", facebook: "", lat: 20.7214, lng: -103.3918 },
           { id: i3, nombre: "Capilla Santa Teresita", estado: "Puebla", ciudad: "Puebla", direccion: "", facebook: "" },
         ],
         propuestas: [
@@ -149,6 +151,56 @@
   const esConf = i => i.tipo === "Confesiones";
   const rango = i => i.fin ? `${hora12(i.hora)} a ${hora12(i.fin)}` : hora12(i.hora);
 
+  // ---------- Próxima misa / confesión (con la hora de este dispositivo) ----------
+  const minutos = h => { const [a, b] = h.split(":"); return +a * 60 + +b; };
+  function proxima(items) {
+    if (!items.length) return null;
+    const ahora = new Date(), hoy = ahora.getDay(), m = ahora.getHours() * 60 + ahora.getMinutes();
+    for (let k = 0; k < 8; k++) {
+      const d = (hoy + k) % 7;
+      const del = items.filter(i => +i.dia === d).sort((a, b) => a.hora.localeCompare(b.hora));
+      for (const i of del) {
+        if (k === 0 && i.fin && minutos(i.hora) <= m && m < minutos(i.fin)) return { i, ahora: true };
+        if (k > 0 || minutos(i.hora) > m) {
+          const falta = k * 1440 + minutos(i.hora) - m;
+          return { i, k, falta };
+        }
+      }
+    }
+    return null;
+  }
+  function textoProxima(p) {
+    if (!p) return "";
+    if (p.ahora) return `<b>ahora</b>, hasta las ${hora12(p.i.fin)}`;
+    const cuando = p.k === 0 ? "hoy" : p.k === 1 ? "mañana" : `el ${DIAS[+p.i.dia].toLowerCase()}`;
+    const pronto = p.falta <= 90 ? ` <span class="pronto">en ${p.falta < 60 ? `${p.falta} min` : `1 h ${p.falta - 60 ? `${p.falta - 60} min` : ""}`.trim()}</span>` : "";
+    return `<b>${cuando} ${hora12(p.i.hora)}</b>${pronto}`;
+  }
+  function lineaProxima(items) {
+    const misa = proxima(items.filter(i => (i.tipo || "Misa") === "Misa"));
+    const conf = proxima(items.filter(esConf));
+    const partes = [];
+    if (misa) partes.push(`<span>⏰ Próxima misa: ${textoProxima(misa)}</span>`);
+    if (conf) partes.push(`<span>🕊️ Confesiones: ${textoProxima(conf)}</span>`);
+    return partes.length ? `<p class="proxima">${partes.join("")}</p>` : "";
+  }
+
+  // ---------- Distancia y mapas ----------
+  let POS = null; // { lat, lng } de la persona, solo si toca "Cerca de mí"
+  const tieneUbic = ig => Number.isFinite(ig.lat) && Number.isFinite(ig.lng);
+  function km(a, b) {
+    const r = x => x * Math.PI / 180, R = 6371;
+    const dLat = r(b.lat - a.lat), dLng = r(b.lng - a.lng);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  const textoKm = d => d < 1 ? `a ${Math.max(50, Math.round(d * 20) * 50)} m` : `a ${d < 10 ? d.toFixed(1) : Math.round(d)} km`;
+  function urlMapa(ig) {
+    const destino = tieneUbic(ig) ? `${ig.lat},${ig.lng}`
+      : [ig.nombre, ig.direccion, ig.ciudad, ig.estado, "México"].filter(Boolean).join(", ");
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destino)}`;
+  }
+
   const CORTO = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
   // Opciones de varios días en el formulario
   const GRUPOS_DIAS = { todos: [0, 1, 2, 3, 4, 5, 6], ls: [1, 2, 3, 4, 5, 6], lv: [1, 2, 3, 4, 5] };
@@ -217,6 +269,7 @@
 
     let cuerpo = "";
     if (principal) {
+      cuerpo += lineaProxima(principal.items);
       cuerpo += tablaHorario(principal.items, soloHoy);
       if (vigente) {
         cuerpo += `<p class="meta">${vigente.aprobada ? "Verificado por la administración" : `Confirmado por ${vigente.votos} personas`} · actualizado ${fechaRel(vigente.creado_en)}${vigente.nota ? ` · ${esc(vigente.nota)}` : ""}</p>`;
@@ -245,6 +298,7 @@
       ${foto}
       <div class="cab"><h3>${esc(ig.nombre)}</h3>${sello}</div>
       <p class="lugar">${esc(ig.ciudad)}${ig.estado && ig.estado !== ig.ciudad ? `, ${esc(ig.estado)}` : ""}${ig.direccion ? ` · ${esc(ig.direccion)}` : ""}${fb}</p>
+      <p class="lugar"><a class="mapa" href="${esc(urlMapa(ig))}" target="_blank" rel="noopener">📍 Cómo llegar</a>${POS && tieneUbic(ig) ? ` · <b>${textoKm(km(POS, ig))}</b>` : ""}</p>
       ${cuerpo}
       <div class="botones">${botones.join("")}</div>
     </article>`;
@@ -264,6 +318,11 @@
     if ($("#soloConf").checked) lista = lista.filter(ig => (ig.vigente || ig.pendiente)?.items.some(esConf));
     // Validadas primero, luego por nombre
     lista.sort((a, b) => (!!b.vigente - !!a.vigente) || a.nombre.localeCompare(b.nombre, "es"));
+    // "Cerca de mí": primero las que tienen ubicación, de la más cercana a la más lejana
+    if (POS) {
+      const dist = ig => tieneUbic(ig) ? km(POS, ig) : Infinity;
+      lista.sort((a, b) => (dist(a) - dist(b)) || 0);
+    }
 
     $("#conteo").textContent = `${lista.length} ${lista.length === 1 ? "iglesia" : "iglesias"}`;
     $("#lista").innerHTML = lista.length
@@ -421,6 +480,11 @@
         const d = { nombre: fd.get("nombre").trim(), estado: fd.get("estado"), ciudad: fd.get("ciudad").trim(), direccion: fd.get("direccion").trim(), facebook: fd.get("facebook").trim() };
         if (d.nombre.length < 3 || d.ciudad.length < 2 || !d.estado) throw new Error("Escribe el nombre, el estado y la ciudad.");
         if (!window.textoLimpio(`${d.nombre} ${d.ciudad} ${d.direccion}`)) throw new Error("Por favor escribe solo los datos de la iglesia, sin palabras ofensivas.");
+        if (form.elements.aqui?.checked) {
+          btn.textContent = "Obteniendo ubicación…";
+          try { Object.assign(d, await miUbicacion()); } catch (e) { throw new Error(`${e.message} O desmarca “Estoy en la iglesia”.`); }
+          btn.textContent = "Enviando…";
+        }
         if (d.facebook && !/^https?:\/\/([a-z0-9-]+\.)*(facebook\.com|fb\.com|fb\.me)\//i.test(d.facebook)) throw new Error("El enlace debe ser de Facebook (https://facebook.com/…).");
         id = await api.agregarIglesia(d, items);
       } else {
@@ -488,6 +552,36 @@
   form.elements.estado.addEventListener("change", sugerirCiudades);
   $("#soloHoy").addEventListener("change", render);
   $("#soloConf").addEventListener("change", render);
+
+  const miUbicacion = () => new Promise((ok, mal) => {
+    if (!navigator.geolocation) return mal(new Error("Tu navegador no permite usar la ubicación."));
+    navigator.geolocation.getCurrentPosition(
+      p => ok({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      e => mal(new Error(e.code === 1 ? "Para ver las iglesias cercanas, permite usar tu ubicación." : "No pudimos obtener tu ubicación. Intenta de nuevo.")),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 120000 });
+  });
+
+  $("#btnCerca").addEventListener("click", async () => {
+    const b = $("#btnCerca");
+    if (POS) { POS = null; b.classList.remove("activo"); b.textContent = "📍 Cerca de mí"; render(); return; }
+    b.disabled = true; b.textContent = "Buscando tu ubicación…";
+    try {
+      POS = await miUbicacion();
+      // quitar filtros de lugar para ver todas las cercanas
+      $("#estado").value = ""; $("#estado").dispatchEvent(new Event("change"));
+      $("#q").value = "";
+      b.classList.add("activo"); b.textContent = "📍 Cerca de mí ✕";
+      render();
+      const n = IGLESIAS.filter(tieneUbic).length;
+      toast(n ? "Las iglesias más cercanas aparecen primero." : "Todavía ninguna iglesia tiene ubicación guardada. Pronto aparecerán por distancia.");
+      $("#lista").scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (e) {
+      b.textContent = "📍 Cerca de mí"; toast(e.message);
+    } finally { b.disabled = false; }
+  });
+
+  // Mantener "Próxima misa" al día si la página queda abierta
+  setInterval(() => { if (!dlg.open) render(); }, 5 * 60 * 1000);
 
   // ---------- Inicio ----------
   $("#nReq").textContent = REQ;

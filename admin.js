@@ -80,10 +80,11 @@
       </div>`).join("");
     return `<article class="admin-card" data-iglesia="${ig.id}">
       <h3>${esc(ig.nombre)}${ig.oculta ? ' <span class="sello pend">Oculta al público</span>' : ""}</h3>
-      <p class="meta">${esc(ig.ciudad)}, ${esc(ig.estado || "sin estado")} · ${props.length} horario(s)</p>
+      <p class="meta">${esc(ig.ciudad)}, ${esc(ig.estado || "sin estado")} · ${props.length} horario(s)${tieneUbic(ig) ? " · 📍 con ubicación" : " · sin ubicación"}</p>
       ${abiertaAqui ? `<form data-form="${ig.id}">${formIglesia(ig)}
           <div class="botones"><button class="btn" type="submit">Guardar datos</button>
           <button type="button" class="btn sec ${ig.oculta ? "" : "peligro"}" data-ocultar-iglesia="${ig.id}" data-valor="${!ig.oculta}">${ig.oculta ? "Volver a mostrar iglesia" : "Ocultar iglesia"}</button></div>
+          ${editorUbicacion(ig)}
           ${editorFoto(ig)}
           ${editorHorario(true)}
         </form>${lista || '<p class="muted">Sin horarios.</p>'}`
@@ -118,6 +119,66 @@
       return i;
     });
   }).filter(i => i.hora);
+
+  // ---------- Ubicación de la iglesia ----------
+  const tieneUbic = ig => Number.isFinite(ig.lat) && Number.isFinite(ig.lng);
+  function editorUbicacion(ig) {
+    const ya = tieneUbic(ig);
+    return `<div class="ubic-admin">
+      <b>📍 Ubicación en el mapa</b>
+      <p class="meta">${ya ? `Guardada · <a href="https://www.google.com/maps?q=${ig.lat},${ig.lng}" target="_blank" rel="noopener">ver en Google Maps</a>` : "Sin ubicación. Sin ella no aparece en “Cerca de mí”."}</p>
+      <div class="botones">
+        <button type="button" class="btn sec chico" data-ubic-buscar="${ig.id}">Buscar por dirección</button>
+        <button type="button" class="btn sec chico" data-ubic-aqui="${ig.id}">Usar mi ubicación actual</button>
+        ${ya ? `<button type="button" class="btn sec chico peligro" data-ubic-quitar="${ig.id}">Quitar</button>` : ""}
+      </div>
+      <label>O pega un enlace de Google Maps o las coordenadas
+        <span class="fila-ubic"><input data-ubic-texto="${ig.id}" placeholder="20.6767, -103.3475 o enlace de Google Maps">
+        <button type="button" class="btn chico" data-ubic-pegar="${ig.id}">Guardar</button></span></label>
+    </div>`;
+  }
+
+  // Acepta "20.67, -103.34" o enlaces largos de Google Maps (@lat,lng / q=lat,lng / !3dlat!4dlng)
+  function leerCoordenadas(t) {
+    t = decodeURIComponent(t || "");
+    const pats = [/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/, /@(-?\d+\.\d+),(-?\d+\.\d+)/, /[?&](?:q|query|destination|ll)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/, /^\s*(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\s*$/];
+    for (const r of pats) {
+      const m = t.match(r);
+      if (m && Math.abs(+m[1]) <= 90 && Math.abs(+m[2]) <= 180) return { lat: +m[1], lng: +m[2] };
+    }
+    return null;
+  }
+
+  // Búsqueda de dirección con OpenStreetMap (gratis; máximo una consulta por segundo)
+  async function buscarDireccion(ig) {
+    const consultas = [
+      [ig.nombre, ig.direccion, ig.ciudad, ig.estado].filter(Boolean).join(", "),
+      [ig.direccion, ig.ciudad, ig.estado].filter(Boolean).join(", "),
+    ].filter((q, i, a) => q && a.indexOf(q) === i);
+    for (const q of consultas) {
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=mx&accept-language=es&q=${encodeURIComponent(q)}`);
+      if (!r.ok) throw new Error("El buscador de mapas no respondió. Intenta más tarde.");
+      const d = await r.json();
+      if (d[0]) return { lat: +d[0].lat, lng: +d[0].lon };
+      await new Promise(ok => setTimeout(ok, 1100));
+    }
+    return null;
+  }
+
+  const guardarUbic = (id, u) => rpc("admin_guardar_ubicacion", { p_iglesia: id, p_lat: u ? u.lat : null, p_lng: u ? u.lng : null });
+
+  async function ubicarTodas() {
+    const faltan = IGLESIAS.filter(ig => !tieneUbic(ig) && !ig.oculta);
+    if (!faltan.length) return toast("Todas las iglesias ya tienen ubicación");
+    let bien = 0;
+    for (const [n, ig] of faltan.entries()) {
+      toast(`Buscando ${n + 1} de ${faltan.length}: ${ig.nombre}…`);
+      try { const u = await buscarDireccion(ig); if (u) { await guardarUbic(ig.id, u); bien++; } } catch {}
+      await new Promise(ok => setTimeout(ok, 1100));
+    }
+    await cargar();
+    toast(`Listo: ${bien} de ${faltan.length} ubicadas. Revisa las demás una por una.`);
+  }
 
   // ---------- Foto de la iglesia ----------
   function editorFoto(ig) {
@@ -182,6 +243,30 @@
       if (!items.length) return toast("Agrega al menos un horario");
       accion(() => rpc("admin_publicar_horario", { p_iglesia: form.dataset.form, p_items: items, p_nota: form.elements.nota.value }), "Horario publicado como verificado");
     }
+    else if (b.dataset.ubicBuscar) {
+      const ig = IGLESIAS.find(i => i.id === b.dataset.ubicBuscar);
+      toast("Buscando la dirección…");
+      accion(async () => {
+        const u = await buscarDireccion(ig);
+        if (!u) throw new Error("No encontré esa dirección. Usa tu ubicación o pega un enlace de Google Maps.");
+        await guardarUbic(ig.id, u);
+      }, "Ubicación guardada. Revísala en “ver en Google Maps”.");
+    }
+    else if (b.dataset.ubicAqui) {
+      toast("Obteniendo tu ubicación…");
+      accion(() => new Promise((ok, mal) => navigator.geolocation
+        ? navigator.geolocation.getCurrentPosition(p => ok(guardarUbic(b.dataset.ubicAqui, { lat: p.coords.latitude, lng: p.coords.longitude })),
+            () => mal(new Error("No se pudo obtener tu ubicación")), { enableHighAccuracy: true, timeout: 15000 })
+        : mal(new Error("Tu navegador no permite usar la ubicación"))), "Ubicación guardada");
+    }
+    else if (b.dataset.ubicPegar) {
+      const t = form.querySelector(`[data-ubic-texto="${b.dataset.ubicPegar}"]`).value;
+      const u = leerCoordenadas(t);
+      if (!u) return toast(/goo\.gl|maps\.app/.test(t) ? "Ese enlace corto no trae coordenadas. Abre el enlace y copia la dirección completa de la barra, o mantén el dedo en el mapa y copia los números." : "No reconozco esas coordenadas");
+      accion(() => guardarUbic(b.dataset.ubicPegar, u), "Ubicación guardada");
+    }
+    else if (b.dataset.ubicQuitar) accion(() => guardarUbic(b.dataset.ubicQuitar, null), "Ubicación quitada");
+    else if (b.id === "btnUbicarTodas") { b.disabled = true; ubicarTodas().finally(() => (b.disabled = false)); }
     else if (b.dataset.elegirFoto) form.querySelector(`[data-archivo="${b.dataset.elegirFoto}"]`).click();
     else if (b.dataset.quitarFoto) accion(() => rpc("admin_guardar_foto", { p_iglesia: b.dataset.quitarFoto, p_foto: "" }), "Foto quitada");
     else if (b.dataset.aprobar) accion(() => rpc("admin_aprobar_propuesta", { p_id: b.dataset.aprobar, p_aprobada: b.dataset.valor === "true" }), "Listo");
