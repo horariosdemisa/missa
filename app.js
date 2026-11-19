@@ -205,6 +205,23 @@
     return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destino)}`;
   }
 
+  // ---------- Compartir por WhatsApp ----------
+  const URL_SITIO = `${location.origin}${location.pathname.replace(/index\.html$/, "")}`;
+  const sinHtml = t => t.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  function textoWhatsApp(ig) {
+    const p = ig.vigente || ig.pendiente;
+    const lineas = [`⛪ *${ig.nombre}* (${ig.ciudad})`];
+    if (p) {
+      const misa = proxima(p.items.filter(i => (i.tipo || "Misa") === "Misa"));
+      const conf = proxima(p.items.filter(esConf));
+      if (misa) lineas.push(`⏰ Próxima misa: ${sinHtml(textoProxima(misa))}`);
+      if (conf) lineas.push(`🕊️ Confesiones: ${sinHtml(textoProxima(conf))}`);
+    }
+    lineas.push(`Todos los horarios: ${URL_SITIO}#iglesia-${ig.id}`);
+    return lineas.join("\n");
+  }
+  const urlWhatsApp = ig => `https://wa.me/?text=${encodeURIComponent(textoWhatsApp(ig))}`;
+
   const CORTO = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
   // Opciones de varios días en el formulario
   const GRUPOS_DIAS = { todos: [0, 1, 2, 3, 4, 5, 6], ls: [1, 2, 3, 4, 5, 6], lv: [1, 2, 3, 4, 5] };
@@ -298,6 +315,7 @@
     const botones = [];
     if (!vigente && pendiente) botones.push(botonConfirmar(pendiente));
     botones.push(`<button class="btn sec" data-actualizar="${ig.id}">Actualizar horarios</button>`);
+    botones.push(`<a class="btn sec chico wa" href="${esc(urlWhatsApp(ig))}" target="_blank" rel="noopener">💬 WhatsApp</a>`);
     botones.push(`<button class="btn sec chico" data-compartir="${ig.id}">Compartir</button>`);
 
     const foto = ig.foto_actualizada
@@ -600,6 +618,23 @@
 
   // Mantener "Próxima misa" al día si la página queda abierta
   setInterval(() => { if (!dlg.open) render(); }, 5 * 60 * 1000);
+
+  // ---------- Instalar como app ----------
+  if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+  const instalada = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  const esIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  let avisoInstalar = null;
+  window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); avisoInstalar = e; $("#btnInstalar").hidden = false; });
+  window.addEventListener("appinstalled", () => { $("#btnInstalar").hidden = true; toast("¡Listo! Ya tienes Misa en tu celular."); });
+  if (esIos && !instalada) $("#btnInstalar").hidden = false;
+  $("#btnInstalar").addEventListener("click", async () => {
+    if (avisoInstalar) { avisoInstalar.prompt(); await avisoInstalar.userChoice; avisoInstalar = null; $("#btnInstalar").hidden = true; }
+    else if (esIos) $("#dlgIos").showModal();
+  });
+  $("#btnWaPagina").addEventListener("click", () => {
+    const t = `⛪ Horarios de misa y confesiones en México, confirmados por la comunidad. Gratis para todos:\n${URL_SITIO}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(t)}`, "_blank", "noopener");
+  });
 
   // ---------- Inicio ----------
   $("#nReq").textContent = REQ;

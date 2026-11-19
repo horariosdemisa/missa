@@ -11,6 +11,11 @@
   <meta property="og:type" content="website">
   <meta name="theme-color" content="#7a2e2e">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛪</text></svg>">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="iconos/icono-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Misa">
+  <meta property="og:image" content="https://horariosdemisa.github.io/missa/iconos/icono-512.png">
   <link rel="stylesheet" href="styles.css">
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"WebSite","name":"Horarios de Misa","inLanguage":"es","description":"Horarios de misa validados por la comunidad."}
@@ -32,6 +37,8 @@
         <label class="hoy"><input type="checkbox" id="soloHoy"> Solo horarios de hoy</label>
         <label class="hoy"><input type="checkbox" id="soloConf"> Con confesiones</label>
         <button type="button" class="btn-cerca" id="btnCerca">📍 Cerca de mí</button>
+        <button type="button" class="btn-cerca" id="btnInstalar" hidden>📲 Instalar en mi celular</button>
+        <button type="button" class="btn-cerca wa" id="btnWaPagina">💬 Compartir por WhatsApp</button>
       </div>
     </div>
   </header>
@@ -141,6 +148,16 @@
       <button type="button" class="quitar" aria-label="Quitar">✕</button>
     </div>
   </template>
+
+  <dialog id="dlgIos" class="dlg-chico">
+    <h2>Instalar en tu iPhone</h2>
+    <ol>
+      <li>Toca el botón <b>Compartir</b> <span aria-hidden="true">⬆️</span> abajo en Safari.</li>
+      <li>Elige <b>“Agregar a pantalla de inicio”</b>.</li>
+      <li>Toca <b>Agregar</b>. Aparecerá el ícono ✝ “Misa”.</li>
+    </ol>
+    <form method="dialog"><button class="btn">Entendido</button></form>
+  </dialog>
 
   <div id="toast" class="toast" role="status" hidden></div>
 

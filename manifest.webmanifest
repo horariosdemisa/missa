@@ -1,0 +1,16 @@
+{
+  "name": "Horarios de Misa",
+  "short_name": "Misa",
+  "description": "Horarios de misa y confesiones validados por la comunidad.",
+  "lang": "es-MX",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8f4ef",
+  "theme_color": "#7a2e2e",
+  "icons": [
+    { "src": "iconos/icono-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "iconos/icono-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "iconos/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

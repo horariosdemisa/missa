@@ -162,3 +162,12 @@ label.check input { width: auto; margin: 3px 0 0; }
 .fila.serv { grid-template-columns: 1fr auto 1fr auto; }
 .fila.serv select { grid-column: span 2; }
 .horario.serv .chip { border-style: dashed; }
+
+/* WhatsApp e instalar */
+a.btn { display: inline-flex; align-items: center; text-decoration: none; }
+.btn.wa { border-color: #1f8f4e; color: #1f8f4e; }
+@media (prefers-color-scheme: dark) { .btn.wa { border-color: #4cc386; color: #4cc386; } }
+.filtros-extra .btn-cerca + .btn-cerca { margin-left: 0; }
+.dlg-chico { max-width: 360px; border: none; border-radius: 16px; padding: 20px; background: var(--tarjeta); color: var(--texto); }
+.dlg-chico::backdrop { background: rgba(0,0,0,.5); }
+.dlg-chico ol { padding-left: 20px; line-height: 1.6; }
