@@ -143,3 +143,19 @@ legend { font-weight: 600; font-size: 14px; padding: 0 4px; }
 /* Foto de la iglesia (solo la sube la administración) */
 .card .foto { margin: -16px -16px 12px; border-radius: var(--radio) var(--radio) 0 0; overflow: hidden; background: var(--borde); aspect-ratio: 16 / 9; }
 .card .foto img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+/* Próxima misa, Cerca de mí y Cómo llegar */
+.proxima { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 4px 0 6px; padding: 8px 12px; border-radius: 10px; background: var(--fondo); border: 1px solid var(--borde); font-size: 15px; }
+.proxima b { color: var(--vino); }
+.pronto { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 6px; background: var(--oro); color: #fff; font-size: 13px; font-weight: 600; }
+@media (prefers-color-scheme: dark) { .proxima b { color: var(--oro); } .pronto { color: #000; } }
+.card .lugar a.mapa { color: var(--vino); font-weight: 600; text-decoration: none; }
+@media (prefers-color-scheme: dark) { .card .lugar a.mapa { color: var(--oro); } }
+.btn-cerca { margin-top: 12px; padding: 6px 14px; border-radius: 999px; border: 1px solid currentColor; background: transparent; color: inherit; font: inherit; font-size: 15px; cursor: pointer; }
+.btn-cerca.activo { background: #fff; color: var(--vino); border-color: #fff; font-weight: 600; }
+.btn-cerca:disabled { opacity: .7; }
+label.check { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; }
+label.check input { width: auto; margin: 3px 0 0; }
+.ubic-admin { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--borde); border-radius: 10px; }
+.fila-ubic { display: flex; gap: 6px; }
+.fila-ubic input { flex: 1; margin: 0; }
