@@ -108,11 +108,15 @@
     if (ig) mostrarFotoActual(ig);
   }
 
-  const leerItems = form => [...form.querySelectorAll(".fila")].map(f => {
-    const i = { dia: +f.querySelector("[name=dia]").value, hora: f.querySelector("[name=hora]").value, tipo: f.querySelector("[name=tipo]").value };
-    const fin = f.querySelector("[name=fin]").value;
-    if (fin && fin > i.hora) i.fin = fin;
-    return i;
+  const GRUPOS_DIAS = { todos: [0, 1, 2, 3, 4, 5, 6], ls: [1, 2, 3, 4, 5, 6], lv: [1, 2, 3, 4, 5] };
+  const leerItems = form => [...form.querySelectorAll(".fila")].flatMap(f => {
+    const hora = f.querySelector("[name=hora]").value, tipo = f.querySelector("[name=tipo]").value, fin = f.querySelector("[name=fin]").value;
+    const v = f.querySelector("[name=dia]").value;
+    return (GRUPOS_DIAS[v] || [+v]).map(dia => {
+      const i = { dia, hora, tipo };
+      if (fin && fin > hora) i.fin = fin;
+      return i;
+    });
   }).filter(i => i.hora);
 
   // ---------- Foto de la iglesia ----------
