@@ -149,8 +149,9 @@ legend { font-weight: 600; font-size: 14px; padding: 0 4px; }
 .proxima b { color: var(--vino); }
 .pronto { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 6px; background: var(--oro); color: #fff; font-size: 13px; font-weight: 600; }
 @media (prefers-color-scheme: dark) { .proxima b { color: var(--oro); } .pronto { color: #000; } }
-.card .lugar a.mapa { color: var(--vino); font-weight: 600; text-decoration: none; }
-@media (prefers-color-scheme: dark) { .card .lugar a.mapa { color: var(--oro); } }
+.card .lugar button.mapa { background: none; border: 0; padding: 0; font: inherit; cursor: pointer; }
+.card .lugar a.mapa, .card .lugar button.mapa { color: var(--vino); font-weight: 600; text-decoration: none; }
+@media (prefers-color-scheme: dark) { .card .lugar a.mapa, .card .lugar button.mapa { color: var(--oro); } }
 .btn-cerca { margin-top: 12px; padding: 6px 14px; border-radius: 999px; border: 1px solid currentColor; background: transparent; color: inherit; font: inherit; font-size: 15px; cursor: pointer; }
 .btn-cerca.activo { background: #fff; color: var(--vino); border-color: #fff; font-weight: 600; }
 .btn-cerca:disabled { opacity: .7; }
