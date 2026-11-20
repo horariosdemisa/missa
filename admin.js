@@ -83,7 +83,7 @@
       </div>`).join("");
     return `<article class="admin-card" data-iglesia="${ig.id}">
       <h3>${esc(ig.nombre)}${ig.oculta ? ' <span class="sello pend">Oculta al público</span>' : ""}</h3>
-      <p class="meta">${esc(ig.ciudad)}, ${esc(ig.estado || "sin estado")} · ${props.length} horario(s)${tieneUbic(ig) ? " · 📍 con ubicación" : " · sin ubicación"}</p>
+      <p class="meta">${esc(ig.ciudad)}, ${esc(ig.estado || "sin estado")} · ${props.length} horario(s)${tieneUbic(ig) ? " · 📍 con ubicación" : " · sin ubicación"} · ${ig.telefono ? `📞 ${esc(ig.telefono)}` : "sin teléfono"}</p>
       ${abiertaAqui ? `<form data-form="${ig.id}">${formIglesia(ig)}
           <div class="botones"><button class="btn" type="submit">Guardar datos</button>
           <button type="button" class="btn sec ${ig.oculta ? "" : "peligro"}" data-ocultar-iglesia="${ig.id}" data-valor="${!ig.oculta}">${ig.oculta ? "Volver a mostrar iglesia" : "Ocultar iglesia"}</button></div>
@@ -91,7 +91,8 @@
           ${editorFoto(ig)}
           ${editorHorario(true)}
         </form>${lista || '<p class="muted">Sin horarios.</p>'}`
-        : `<button class="btn sec chico" data-abrir="${ig.id}">Editar</button>`}
+        : `<div class="botones"><button class="btn sec chico" data-abrir="${ig.id}">Editar</button>
+          <button class="btn sec chico" data-abrir="${ig.id}" data-foco="telefono">📞 ${ig.telefono ? "Cambiar teléfono" : "Agregar teléfono"}</button></div>`}
     </article>`;
   }
 
@@ -237,7 +238,13 @@
   document.addEventListener("click", e => {
     const b = e.target.closest("button"); if (!b) return;
     const form = b.closest("form");
-    if (b.dataset.abrir) { abierta = b.dataset.abrir; render(); }
+    if (b.dataset.abrir) {
+      abierta = b.dataset.abrir; render();
+      if (b.dataset.foco) {
+        const campo = document.querySelector(`[data-form="${abierta}"] [name=${b.dataset.foco}]`);
+        if (campo) { campo.scrollIntoView({ block: "center" }); campo.focus(); }
+      }
+    }
     else if ("cerrar" in b.dataset) { abierta = null; render(); }
     else if (b.dataset.accion === "fila") form.querySelector(".filas").appendChild(fila());
     else if (b.classList.contains("quitar")) b.closest(".fila").remove();
