@@ -172,3 +172,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .dlg-chico { max-width: 360px; border: none; border-radius: 16px; padding: 20px; background: var(--tarjeta); color: var(--texto); }
 .dlg-chico::backdrop { background: rgba(0,0,0,.5); }
 .dlg-chico ol { padding-left: 20px; line-height: 1.6; }
+
+.tel-pend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0 10px; font-size: 15px; }
+.tel-pend a.mapa { color: var(--vino); font-weight: 600; text-decoration: none; }
+@media (prefers-color-scheme: dark) { .tel-pend a.mapa { color: var(--oro); } }

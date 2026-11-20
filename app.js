@@ -33,11 +33,12 @@
     const ok = ({ data, error }) => { if (error) throw new Error(error.message); return data; };
     return {
       async cargar() {
-        const [iglesias, propuestas] = await Promise.all([
+        const [iglesias, propuestas, telefonos] = await Promise.all([
           sb.from("iglesias").select("*").order("nombre").limit(5000).then(ok),
           sb.from("propuestas_con_votos").select("*").order("creado_en", { ascending: false }).limit(20000).then(ok),
+          sb.from("telefonos_con_votos").select("*").order("creado_en", { ascending: false }).limit(20000).then(ok).catch(() => []),
         ]);
-        return { iglesias, propuestas };
+        return { iglesias, propuestas, telefonos };
       },
       async agregarIglesia(d, items) {
         const args = {
@@ -55,8 +56,11 @@
       async validar(propuestaId) {
         return ok(await sb.rpc("validar_horario", { p_propuesta: propuestaId, p_votante: DISPOSITIVO }));
       },
-      async telefono(iglesiaId, tel) {
-        return ok(await sb.rpc("agregar_telefono", { p_iglesia: iglesiaId, p_telefono: tel }));
+      async proponerTel(iglesiaId, tel) {
+        return ok(await sb.rpc("proponer_telefono", { p_iglesia: iglesiaId, p_telefono: tel, p_autor: DISPOSITIVO }));
+      },
+      async validarTel(pid) {
+        return ok(await sb.rpc("validar_telefono", { p_propuesta: pid, p_votante: DISPOSITIVO }));
       },
       async foto(iglesiaId) {
         const r = ok(await sb.from("iglesia_fotos").select("foto").eq("iglesia_id", iglesiaId).maybeSingle());
@@ -98,16 +102,21 @@
       db.propuestas.unshift(p); guardarVoto(p.id); save(); return p.id;
     };
     return {
-      async cargar() { return JSON.parse(JSON.stringify(db)); },
+      async cargar() { return JSON.parse(JSON.stringify({ telefonos: [], ...db })); },
       async agregarIglesia(d, items) {
         const id = uuid(); db.iglesias.push({ id, ...d }); nuevaProp(id, items); return id;
       },
       async actualizar(iglesiaId, items) { return nuevaProp(iglesiaId, items); },
       async foto() { return null; },
-      async telefono(iid, tel) {
-        const ig = db.iglesias.find(x => x.id === iid);
-        if (!ig || ig.telefono) return false;
-        ig.telefono = tel; save(); return true;
+      async proponerTel(iid, tel) {
+        db.telefonos = db.telefonos || [];
+        const t = { id: uuid(), iglesia_id: iid, telefono: tel, creado_en: new Date().toISOString(), votos: 1 };
+        db.telefonos.unshift(t); save(); return t.id;
+      },
+      async validarTel(pid) {
+        const t = (db.telefonos || []).find(x => x.id === pid);
+        if (t && !misVotos.has(pid)) { t.votos++; if (t.votos >= REQ) db.iglesias.find(i => i.id === t.iglesia_id).telefono = t.telefono; save(); }
+        return t ? t.votos : 0;
       },
       async validar(pid) {
         const p = db.propuestas.find(x => x.id === pid);
@@ -120,7 +129,10 @@
   // ---------- Estado y lógica ----------
   let IGLESIAS = [];
 
-  function armar({ iglesias, propuestas }) {
+  const digitos = t => (t || "").replace(/\D/g, "");
+  function armar({ iglesias, propuestas, telefonos = [] }) {
+    const telPor = new Map();
+    for (const t of telefonos) if (!telPor.has(t.iglesia_id)) telPor.set(t.iglesia_id, t); // la más reciente
     const porIglesia = new Map();
     for (const p of propuestas) {
       if (!porIglesia.has(p.iglesia_id)) porIglesia.set(p.iglesia_id, []);
@@ -132,7 +144,9 @@
       const ultima = props[0] || null;
       // Una propuesta más nueva que la validada queda "pendiente"
       const pendiente = ultima && (!vigente || ultima.creado_en > vigente.creado_en) ? ultima : null;
-      return { ...ig, vigente, pendiente };
+      const t = telPor.get(ig.id);
+      const telPend = t && t.votos < REQ && digitos(t.telefono) !== digitos(ig.telefono) ? t : null;
+      return { ...ig, vigente, pendiente, telPend };
     });
   }
 
@@ -291,6 +305,17 @@
       ${ya ? "✓ Ya confirmaste" : "Confirmar horario"}</button>`;
   }
 
+  function lineaTelPend(ig) {
+    const t = ig.telPend;
+    if (!t) return "";
+    const ya = misVotos.has(t.id);
+    return `<div class="tel-pend">
+      <span>📞 ${ig.telefono ? "Nuevo teléfono: " : ""}<a class="mapa" href="tel:${esc(t.telefono.replace(/[^\d+]/g, ""))}">${esc(t.telefono)}</a></span>
+      <span class="sello pend">Pendiente · ${t.votos} de ${REQ}</span>
+      <button class="btn chico ${ya ? "hecho" : ""}" data-validar-tel="${t.id}" ${ya ? "disabled" : ""}>${ya ? "✓ Ya confirmaste" : "Confirmar teléfono"}</button>
+    </div>`;
+  }
+
   function tarjeta(ig, soloHoy) {
     const { vigente, pendiente } = ig;
     const principal = vigente || pendiente;
@@ -332,7 +357,8 @@
       ${foto}
       <div class="cab"><h3>${esc(ig.nombre)}</h3>${sello}</div>
       <p class="lugar">${esc(ig.ciudad)}${ig.estado && ig.estado !== ig.ciudad ? `, ${esc(ig.estado)}` : ""}${ig.direccion ? ` · ${esc(ig.direccion)}` : ""}${fb}</p>
-      <p class="lugar"><a class="mapa" href="${esc(urlMapa(ig))}" target="_blank" rel="noopener">📍 Cómo llegar</a>${ig.telefono ? ` · <a class="mapa" href="tel:${esc(ig.telefono.replace(/[^\d+]/g, ""))}">📞 ${esc(ig.telefono)}</a>` : ` · <button type="button" class="mapa" data-telefono="${ig.id}">📞 Agregar teléfono</button>`}${POS && tieneUbic(ig) ? ` · <b>${textoKm(km(POS, ig))}</b>` : ""}</p>
+      <p class="lugar"><a class="mapa" href="${esc(urlMapa(ig))}" target="_blank" rel="noopener">📍 Cómo llegar</a>${ig.telefono ? ` · <a class="mapa" href="tel:${esc(ig.telefono.replace(/[^\d+]/g, ""))}">📞 ${esc(ig.telefono)}</a>` : ig.telPend ? "" : ` · <button type="button" class="mapa" data-telefono="${ig.id}">📞 Agregar teléfono</button>`}${POS && tieneUbic(ig) ? ` · <b>${textoKm(km(POS, ig))}</b>` : ""}</p>
+      ${lineaTelPend(ig)}
       ${cuerpo}
       <div class="botones">${botones.join("")}</div>
     </article>`;
@@ -417,6 +443,7 @@
     }
   }
 
+  const clave = items => JSON.stringify([...items].map(i => [+i.dia, i.hora, i.tipo || "Misa", i.fin || ""]).sort((a, b) => String(a).localeCompare(String(b))));
   const telValido = t => /^[0-9 +()./-]{7,30}$/.test(t) && t.replace(/\D/g, "").length >= 7;
 
   function toast(msg) {
@@ -475,9 +502,10 @@
     form.elements.estado.innerHTML = `<option value="">Elige el estado…</option>` + opciones(ESTADOS, $("#estado").value);
     sugerirCiudades();
     $("#formTitulo").textContent = nueva ? "Agregar iglesia" : "Actualizar horarios";
-    $("#formIglesia").textContent = nueva ? "Escribe los datos, el horario de misa y, si lo sabes, el de confesiones." : `${m.iglesia.nombre} · ${m.iglesia.ciudad}. Corrige el horario y envíalo; quedará pendiente hasta que ${REQ} personas lo confirmen.`;
+    $("#formIglesia").textContent = nueva ? "Escribe los datos, el horario de misa y, si lo sabes, el de confesiones." : `${m.iglesia.nombre} · ${m.iglesia.ciudad}. Corrige el horario o el teléfono y envíalo; quedará pendiente hasta que ${REQ} personas lo confirmen.`;
     $("#camposIglesia").hidden = !nueva;
-    $("#campoTel").hidden = !nueva && !!m.iglesia.telefono;
+    $("#campoTel").hidden = false;
+    form.elements.telefono.value = nueva ? "" : (m.iglesia.telPend?.telefono || m.iglesia.telefono || "");
     for (const el of $("#camposIglesia").querySelectorAll("input")) el.required = ["nombre", "ciudad"].includes(el.name) && nueva;
     form.elements.estado.required = nueva;
     const base = !nueva && (m.iglesia.pendiente || m.iglesia.vigente);
@@ -522,6 +550,7 @@
     const tel = (fd.get("telefono") || "").trim();
     if (tel && !telValido(tel)) { err.textContent = "El teléfono debe tener solo números (al menos 7)."; err.hidden = false; return; }
     const btn = $("#btnEnviar"); btn.disabled = true; btn.textContent = "Enviando…";
+    let soloTel = false;
     try {
       let id;
       if (modo.tipo === "nueva") {
@@ -535,11 +564,16 @@
         }
         if (d.facebook && !/^https?:\/\/([a-z0-9-]+\.)*(facebook\.com|fb\.com|fb\.me)\//i.test(d.facebook)) throw new Error("El enlace debe ser de Facebook (https://facebook.com/…).");
         id = await api.agregarIglesia(d, items);
-        if (tel) try { await api.telefono(id, tel); } catch {}
+        if (tel) try { const tp = await api.proponerTel(id, tel); if (tp) guardarVoto(tp); } catch {}
       } else {
-        const pid = await api.actualizar(modo.iglesia.id, items);
-        if (tel && !modo.iglesia.telefono) try { await api.telefono(modo.iglesia.id, tel); } catch {}
-        if (pid) guardarVoto(pid);
+        const ig = modo.iglesia, base = ig.pendiente || ig.vigente;
+        const telActual = ig.telPend?.telefono || ig.telefono || "";
+        const cambioTel = tel && digitos(tel) !== digitos(telActual);
+        const cambioHorario = !base || clave(items) !== clave(base.items);
+        if (!cambioTel && !cambioHorario) throw new Error("No cambiaste nada. Corrige el horario o el teléfono.");
+        if (cambioTel) { const tp = await api.proponerTel(ig.id, tel); if (tp) guardarVoto(tp); }
+        if (cambioHorario) { const pid = await api.actualizar(ig.id, items); if (pid) guardarVoto(pid); }
+        soloTel = cambioTel && !cambioHorario;
         id = modo.iglesia.id;
       }
       dlg.close();
@@ -550,7 +584,7 @@
         if (ig?.pendiente) guardarVoto(ig.pendiente.id);
         render();
       }
-      toast("¡Gracias! El horario quedó pendiente por validación.");
+      toast(soloTel ? "¡Gracias! El teléfono quedó pendiente por validación." : "¡Gracias! Quedó pendiente por validación.");
       document.getElementById(`iglesia-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (e) {
       err.textContent = e.message || "No se pudo enviar. Intenta de nuevo."; err.hidden = false;
@@ -578,6 +612,15 @@
         const votos = await api.validar(id);
         guardarVoto(id);
         toast(votos >= REQ ? "¡Gracias! Este horario ya está validado ✓" : `¡Gracias por confirmar! (${votos} de ${REQ})`);
+        await recargar();
+      } catch (er) { b.disabled = false; toast("No se pudo confirmar. Intenta de nuevo."); }
+    } else if (b.dataset.validarTel) {
+      const id = b.dataset.validarTel;
+      b.disabled = true;
+      try {
+        const votos = await api.validarTel(id);
+        guardarVoto(id);
+        toast(votos >= REQ ? "¡Gracias! El teléfono ya está validado ✓" : `¡Gracias por confirmar! (${votos} de ${REQ})`);
         await recargar();
       } catch (er) { b.disabled = false; toast("No se pudo confirmar. Intenta de nuevo."); }
     } else if (b.dataset.telefono) {
@@ -611,10 +654,11 @@
     if (!telValido(tel)) { err.textContent = "Escribe el teléfono solo con números (al menos 7)."; err.hidden = false; return; }
     const btn = $("#btnTelGuardar"); btn.disabled = true;
     try {
-      const ok = await api.telefono(formTel.dataset.iglesia, tel);
+      const tp = await api.proponerTel(formTel.dataset.iglesia, tel);
+      if (tp) guardarVoto(tp);
       dlgTel.close();
       await recargar();
-      toast(ok ? "¡Gracias! Ya se ve el teléfono." : "Esta iglesia ya tenía teléfono.");
+      toast(`¡Gracias! El teléfono quedó pendiente hasta que ${REQ} personas lo confirmen.`);
     } catch (e) { err.textContent = e.message || "No se pudo guardar. Intenta de nuevo."; err.hidden = false; }
     finally { btn.disabled = false; }
   });
