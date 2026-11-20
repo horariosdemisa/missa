@@ -80,6 +80,9 @@
         <label>Página de Facebook (opcional)<input name="facebook" maxlength="300" placeholder="https://facebook.com/…"></label>
         <label class="check"><input type="checkbox" name="aqui"> Estoy en la iglesia ahora: guardar su ubicación para el mapa</label>
       </div>
+      <div id="campoTel">
+        <label>Teléfono de la parroquia (opcional)<input name="telefono" type="tel" inputmode="tel" maxlength="30" placeholder="938 123 4567" autocomplete="off"></label>
+      </div>
       <fieldset>
         <legend>⛪ Horarios de misa</legend>
         <div id="filas"></div>
@@ -157,6 +160,18 @@
       <li>Toca <b>Agregar</b>. Aparecerá el ícono ✝ “Misa”.</li>
     </ol>
     <form method="dialog"><button class="btn">Entendido</button></form>
+  </dialog>
+  <dialog id="dlgTel">
+    <form id="formTel" method="dialog">
+      <h2>Agregar teléfono</h2>
+      <p id="telIglesia" class="muted"></p>
+      <label>Teléfono de la parroquia<input name="telefono" type="tel" inputmode="tel" maxlength="30" placeholder="938 123 4567" required autocomplete="off"></label>
+      <p id="telError" class="error" hidden></p>
+      <div class="botones">
+        <button class="btn" type="submit" id="btnTelGuardar">Guardar</button>
+        <button class="btn sec" type="button" id="btnTelCancelar">Cancelar</button>
+      </div>
+    </form>
   </dialog>
 
   <div id="toast" class="toast" role="status" hidden></div>

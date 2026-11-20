@@ -55,6 +55,9 @@
       async validar(propuestaId) {
         return ok(await sb.rpc("validar_horario", { p_propuesta: propuestaId, p_votante: DISPOSITIVO }));
       },
+      async telefono(iglesiaId, tel) {
+        return ok(await sb.rpc("agregar_telefono", { p_iglesia: iglesiaId, p_telefono: tel }));
+      },
       async foto(iglesiaId) {
         const r = ok(await sb.from("iglesia_fotos").select("foto").eq("iglesia_id", iglesiaId).maybeSingle());
         return r?.foto || null;
@@ -101,6 +104,11 @@
       },
       async actualizar(iglesiaId, items) { return nuevaProp(iglesiaId, items); },
       async foto() { return null; },
+      async telefono(iid, tel) {
+        const ig = db.iglesias.find(x => x.id === iid);
+        if (!ig || ig.telefono) return false;
+        ig.telefono = tel; save(); return true;
+      },
       async validar(pid) {
         const p = db.propuestas.find(x => x.id === pid);
         if (p && !misVotos.has(pid)) { p.votos++; save(); }
@@ -324,7 +332,7 @@
       ${foto}
       <div class="cab"><h3>${esc(ig.nombre)}</h3>${sello}</div>
       <p class="lugar">${esc(ig.ciudad)}${ig.estado && ig.estado !== ig.ciudad ? `, ${esc(ig.estado)}` : ""}${ig.direccion ? ` · ${esc(ig.direccion)}` : ""}${fb}</p>
-      <p class="lugar"><a class="mapa" href="${esc(urlMapa(ig))}" target="_blank" rel="noopener">📍 Cómo llegar</a>${ig.telefono ? ` · <a class="mapa" href="tel:${esc(ig.telefono.replace(/[^\d+]/g, ""))}">📞 ${esc(ig.telefono)}</a>` : ""}${POS && tieneUbic(ig) ? ` · <b>${textoKm(km(POS, ig))}</b>` : ""}</p>
+      <p class="lugar"><a class="mapa" href="${esc(urlMapa(ig))}" target="_blank" rel="noopener">📍 Cómo llegar</a>${ig.telefono ? ` · <a class="mapa" href="tel:${esc(ig.telefono.replace(/[^\d+]/g, ""))}">📞 ${esc(ig.telefono)}</a>` : ` · <button type="button" class="mapa" data-telefono="${ig.id}">📞 Agregar teléfono</button>`}${POS && tieneUbic(ig) ? ` · <b>${textoKm(km(POS, ig))}</b>` : ""}</p>
       ${cuerpo}
       <div class="botones">${botones.join("")}</div>
     </article>`;
@@ -409,6 +417,8 @@
     }
   }
 
+  const telValido = t => /^[0-9 +()./-]{7,30}$/.test(t) && t.replace(/\D/g, "").length >= 7;
+
   function toast(msg) {
     const t = $("#toast"); t.textContent = msg; t.hidden = false;
     clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), 3200);
@@ -467,6 +477,7 @@
     $("#formTitulo").textContent = nueva ? "Agregar iglesia" : "Actualizar horarios";
     $("#formIglesia").textContent = nueva ? "Escribe los datos, el horario de misa y, si lo sabes, el de confesiones." : `${m.iglesia.nombre} · ${m.iglesia.ciudad}. Corrige el horario y envíalo; quedará pendiente hasta que ${REQ} personas lo confirmen.`;
     $("#camposIglesia").hidden = !nueva;
+    $("#campoTel").hidden = !nueva && !!m.iglesia.telefono;
     for (const el of $("#camposIglesia").querySelectorAll("input")) el.required = ["nombre", "ciudad"].includes(el.name) && nueva;
     form.elements.estado.required = nueva;
     const base = !nueva && (m.iglesia.pendiente || m.iglesia.vigente);
@@ -508,6 +519,8 @@
     if (!items.length) { err.textContent = "Agrega al menos un horario."; err.hidden = false; return; }
     if (items.length > 80) { err.textContent = "Son demasiados horarios. Junta los que se repiten con “Todos los días” o “Lunes a viernes”."; err.hidden = false; return; }
     const fd = new FormData(form);
+    const tel = (fd.get("telefono") || "").trim();
+    if (tel && !telValido(tel)) { err.textContent = "El teléfono debe tener solo números (al menos 7)."; err.hidden = false; return; }
     const btn = $("#btnEnviar"); btn.disabled = true; btn.textContent = "Enviando…";
     try {
       let id;
@@ -522,8 +535,10 @@
         }
         if (d.facebook && !/^https?:\/\/([a-z0-9-]+\.)*(facebook\.com|fb\.com|fb\.me)\//i.test(d.facebook)) throw new Error("El enlace debe ser de Facebook (https://facebook.com/…).");
         id = await api.agregarIglesia(d, items);
+        if (tel) try { await api.telefono(id, tel); } catch {}
       } else {
         const pid = await api.actualizar(modo.iglesia.id, items);
+        if (tel && !modo.iglesia.telefono) try { await api.telefono(modo.iglesia.id, tel); } catch {}
         if (pid) guardarVoto(pid);
         id = modo.iglesia.id;
       }
@@ -565,6 +580,13 @@
         toast(votos >= REQ ? "¡Gracias! Este horario ya está validado ✓" : `¡Gracias por confirmar! (${votos} de ${REQ})`);
         await recargar();
       } catch (er) { b.disabled = false; toast("No se pudo confirmar. Intenta de nuevo."); }
+    } else if (b.dataset.telefono) {
+      const ig = IGLESIAS.find(i => i.id === b.dataset.telefono);
+      if (!ig) return;
+      $("#telIglesia").textContent = `${ig.nombre} · ${ig.ciudad}`;
+      $("#telError").hidden = true;
+      formTel.reset(); formTel.dataset.iglesia = ig.id;
+      dlgTel.showModal();
     } else if (b.dataset.actualizar) {
       const ig = IGLESIAS.find(i => i.id === b.dataset.actualizar);
       if (ig) abrirForm({ tipo: "actualizar", iglesia: ig });
@@ -579,6 +601,22 @@
     } else if (b.id === "btnAgregar" || "agregar" in b.dataset) {
       abrirForm({ tipo: "nueva" });
     }
+  });
+
+  const dlgTel = $("#dlgTel"), formTel = $("#formTel");
+  $("#btnTelCancelar").addEventListener("click", () => dlgTel.close());
+  formTel.addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const tel = formTel.elements.telefono.value.trim(), err = $("#telError");
+    if (!telValido(tel)) { err.textContent = "Escribe el teléfono solo con números (al menos 7)."; err.hidden = false; return; }
+    const btn = $("#btnTelGuardar"); btn.disabled = true;
+    try {
+      const ok = await api.telefono(formTel.dataset.iglesia, tel);
+      dlgTel.close();
+      await recargar();
+      toast(ok ? "¡Gracias! Ya se ve el teléfono." : "Esta iglesia ya tenía teléfono.");
+    } catch (e) { err.textContent = e.message || "No se pudo guardar. Intenta de nuevo."; err.hidden = false; }
+    finally { btn.disabled = false; }
   });
 
   let tq;
